@@ -217,9 +217,9 @@
       if (salesVoucher) {
         const isRet = !!salesVoucher.isReturn;
         showKyaConfirm({
-          title: isRet ? 'Delete Posted Return?' : 'Delete Posted Invoice?',
+          title: isRet ? 'Delete Posted Reversal?' : 'Delete Posted Invoice?',
           message: isRet
-            ? 'Are you sure you want to delete this sales return? This will also delete the corresponding journal entry and cannot be undone.'
+            ? 'Are you sure you want to delete this sales reversal? This will also delete the corresponding journal entry and cannot be undone.'
             : 'Are you sure you want to delete this sales invoice? This will also delete the corresponding journal entry and cannot be undone.',
           confirmLabel: 'Delete',
           okBg: 'var(--red-600)',
@@ -231,7 +231,7 @@
             
             postedEntries = postedEntries.filter(e => e.id !== entry.id);
             
-            showToast(isRet ? `Sales Return "${salesVoucher.invoiceNo}" deleted.` : `Invoice "${salesVoucher.invoiceNo}" deleted.`, 'success');
+            showToast(isRet ? `Sales Reversal "${salesVoucher.invoiceNo}" deleted.` : `Invoice "${salesVoucher.invoiceNo}" deleted.`, 'success');
             renderLedgerStatementView();
             refreshAllReports();
             triggerAutoBackup();
@@ -313,9 +313,9 @@
           if (salesVoucher) {
             const isRet = !!salesVoucher.isReturn;
             showKyaConfirm({
-              title: isRet ? 'Delete Posted Return?' : 'Delete Posted Invoice?',
+              title: isRet ? 'Delete Posted Reversal?' : 'Delete Posted Invoice?',
               message: isRet
-                ? 'Are you sure you want to delete this sales return? This will also delete the corresponding journal entry and cannot be undone.'
+                ? 'Are you sure you want to delete this sales reversal? This will also delete the corresponding journal entry and cannot be undone.'
                 : 'Are you sure you want to delete this sales invoice? This will also delete the corresponding journal entry and cannot be undone.',
               confirmLabel: 'Delete',
               okBg: 'var(--red-600)',
@@ -325,7 +325,7 @@
                 if (idx > -1) list.splice(idx, 1);
                 window.KYA_STORE.salesVouchers = list;
                 postedEntries = postedEntries.filter(e => e.id !== entry.id);
-                showToast(isRet ? `Sales Return "${salesVoucher.invoiceNo}" deleted.` : `Invoice "${salesVoucher.invoiceNo}" deleted.`, 'success');
+                showToast(isRet ? `Sales Reversal "${salesVoucher.invoiceNo}" deleted.` : `Invoice "${salesVoucher.invoiceNo}" deleted.`, 'success');
                 renderLedgerStatementView();
                 refreshAllReports();
                 triggerAutoBackup();

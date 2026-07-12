@@ -2944,6 +2944,13 @@
                   </button>
                 ` : ''}
 
+                ${_ohRemindersFilter === 'upcoming' ? `
+                  <!-- Delete button (icon only) -->
+                  <button class="oh-del-reminder-btn" data-index="${idx}" style="color: #cbd5e1; border: none; background: transparent; padding: 6px; cursor: pointer; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; outline:none;" onmouseover="this.style.color='#ef4444'; this.style.background='#fee2e2';" onmouseout="this.style.color='#cbd5e1'; this.style.background='transparent';">
+                    <svg viewBox="0 0 12 12" fill="none" style="width: 14px; height: 14px;"><path d="M2 3h8M5 3V2h2v1M4.5 5v4M7.5 5v4M3 3l.7 7h4.6L9 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                ` : ''}
+
                 ${_ohRemindersFilter === 'templates' ? `
                   <!-- Edit button (icon only) -->
                   <button class="oh-edit-reminder-btn" data-index="${idx}" style="color: #cbd5e1; border: none; background: transparent; padding: 6px; cursor: pointer; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; outline:none;" onmouseover="this.style.color='var(--blue-600)'; this.style.background='var(--blue-50)';" onmouseout="this.style.color='#cbd5e1'; this.style.background='transparent';">

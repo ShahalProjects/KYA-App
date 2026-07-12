@@ -21,15 +21,7 @@
 
   <div class="landing-content">
     <div class="landing-logo-ring" aria-hidden="true">
-      <!-- Ledger / book icon -->
-      <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="10" y="8" width="30" height="36" rx="4" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.7)" stroke-width="2"/>
-        <rect x="10" y="8" width="6" height="36" rx="2" fill="rgba(255,255,255,0.3)"/>
-        <line x1="22" y1="19" x2="34" y2="19" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
-        <line x1="22" y1="25" x2="34" y2="25" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="22" y1="31" x2="30" y2="31" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="22" y1="37" x2="34" y2="37" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
+      <img src="assets/logo.png" alt="KYA Logo" style="width: 150px; height: 150px; object-fit: contain;">
     </div>
 
     <h1 class="landing-title">KYA</h1>
@@ -62,13 +54,7 @@
   <nav id="sidebar" aria-label="Main navigation">
     <div class="sidebar-header">
       <div class="sidebar-logo-box" aria-hidden="true">
-        <svg viewBox="0 0 22 22" fill="none">
-          <rect x="2" y="2" width="6" height="18" rx="2" fill="rgba(255,255,255,0.3)"/>
-          <rect x="2" y="2" width="18" height="18" rx="3" stroke="rgba(255,255,255,0.9)" stroke-width="1.8"/>
-          <line x1="12" y1="7" x2="17" y2="7" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
-          <line x1="12" y1="11" x2="17" y2="11" stroke="rgba(255,255,255,0.7)" stroke-width="1.4" stroke-linecap="round"/>
-          <line x1="12" y1="15" x2="15" y2="15" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
+        <img src="assets/logo.png" alt="KYA Logo" style="width: 36px; height: 36px; object-fit: contain;">
       </div>
       <div class="sidebar-brand">
         <span class="sidebar-brand-name">KYA</span>
@@ -1306,12 +1292,6 @@
               </svg>
               New Invoice
             </button>
-            <button class="btn-sales-action" id="btnSalesReturn" type="button">
-              <svg viewBox="0 0 16 16" fill="none" style="width: 14px; height: 14px;">
-                <path d="M2.5 8h11M2.5 8l4-4M2.5 8l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Return
-            </button>
             <button class="btn-sales-action" id="btnSalesOrder" type="button">
               <svg viewBox="0 0 16 16" fill="none" style="width: 14px; height: 14px;">
                 <rect x="3" y="3" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
@@ -1320,11 +1300,11 @@
               </svg>
               Order
             </button>
-            <button class="btn-sales-action" id="btnSalesRejection" type="button">
+            <button class="btn-sales-action" id="btnSalesReturn" type="button">
               <svg viewBox="0 0 16 16" fill="none" style="width: 14px; height: 14px;">
-                <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M2.5 8h11M2.5 8l4-4M2.5 8l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              Rejection
+              Reversal
             </button>
           </div>
         </div>
@@ -1362,11 +1342,11 @@
               <!-- Searchable Select for returns -->
               <div class="kya-searchable-select-wrap" id="salesInvoiceSelectWrap" style="display: none; position: relative; width: 100%;">
                 <div class="kya-searchable-select-trigger" id="salesInvoiceSelectTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10.5px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700); height: 38px; box-sizing: border-box;">
-                  <span id="salesInvoiceSelectTriggerText">Select Invoice</span>
+                  <span id="salesInvoiceSelectTriggerText">Select Invoice/Order</span>
                   <svg viewBox="0 0 16 16" fill="none" style="width: 10px; height: 10px; stroke: var(--slate-500); stroke-width: 2; margin-left: 6px;"><path d="M2 5l6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <div class="kya-searchable-select-dropdown" id="salesInvoiceSelectDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 1000; padding: 8px; max-height: 240px; overflow-y: auto; flex-direction: column; gap: 4px; width: 100%; box-sizing: border-box;">
-                  <input type="text" id="salesInvoiceSelectSearch" placeholder="Search invoice..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                  <input type="text" id="salesInvoiceSelectSearch" placeholder="Search invoice or order..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
                   <div id="salesInvoiceSelectOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
                 </div>
               </div>
@@ -1461,7 +1441,7 @@
               <!-- Payment Status Sliding selector -->
               <div style="background: var(--white); border: 1.5px solid var(--slate-100); padding: 14px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
-                  <label style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--slate-400); letter-spacing: 0.05em; margin: 0;">Payment Status</label>
+                  <label id="salesPaymentStatusLabel" style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--slate-400); letter-spacing: 0.05em; margin: 0;">Payment Status</label>
                   <div class="sales-paystatus-wrap" style="margin-top: 4px; width: 100%;">
                     <div class="sales-paystatus-bg notpaid-active" id="salesPaymentStatusBg"></div>
                     <button class="sales-paystatus-btn active" id="salesPaymentStatusNotPaid" type="button">Not Paid</button>

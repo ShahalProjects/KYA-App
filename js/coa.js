@@ -120,7 +120,7 @@
       // Revenue from Operations (sg-rfo)
       { name: 'Sales', sgId: 'sg-rfo' },
       { name: 'Service Income', sgId: 'sg-rfo' },
-      { name: 'Sales Returns', sgId: 'sg-rfo' },
+      { name: 'Sales Reversals', sgId: 'sg-rfo' },
       { name: 'Discounts Allowed (Sales)', sgId: 'sg-rfo' },
       { name: 'Export Sales', sgId: 'sg-rfo' },
       { name: 'Domestic Sales', sgId: 'sg-rfo' },

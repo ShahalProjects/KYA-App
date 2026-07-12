@@ -1772,7 +1772,7 @@
           }
         });
       }
-    } else if (type === 'Invoice' || type === 'Return' || type === 'Order') {
+    } else if (type === 'Invoice' || type === 'Reversal' || type === 'Order') {
       const isDraft = (window.KYA_STORE.salesVouchersDrafts || []).some(v => v.id === id);
       if (isDraft) {
         showKyaConfirm({
@@ -1867,7 +1867,7 @@
         id: e.id,
         date: e.date,
         voucherNo: e.invoiceNo,
-        type: e.isReturn ? 'Return' : (e.isOrder ? 'Order' : 'Invoice'),
+        type: e.isReturn ? 'Reversal' : (e.isOrder ? 'Order' : 'Invoice'),
         particulars: `Customer: ${customerName}`,
         amount: fmtNum(e.total),
         isDraft: false,
@@ -1882,7 +1882,7 @@
         id: e.id,
         date: e.date,
         voucherNo: e.invoiceNo,
-        type: e.isReturn ? 'Return' : (e.isOrder ? 'Order' : 'Invoice'),
+        type: e.isReturn ? 'Reversal' : (e.isOrder ? 'Order' : 'Invoice'),
         particulars: `Customer: ${customerName}`,
         amount: fmtNum(e.total),
         isDraft: true,
@@ -1933,7 +1933,7 @@
               <option value="Journal" ${_vdTypeFilter === 'Journal' ? 'selected' : ''}>Journal Entry</option>
               <option value="Invoice" ${_vdTypeFilter === 'Invoice' ? 'selected' : ''}>Sales Invoice</option>
               <option value="Order" ${_vdTypeFilter === 'Order' ? 'selected' : ''}>Sales Order</option>
-              <option value="Return" ${_vdTypeFilter === 'Return' ? 'selected' : ''}>Sales Return</option>
+              <option value="Reversal" ${_vdTypeFilter === 'Reversal' ? 'selected' : ''}>Sales Reversal</option>
             </select>
           </div>
         </div>
@@ -1963,7 +1963,7 @@
               <option value="Journal" ${_vdTypeFilter === 'Journal' ? 'selected' : ''}>Journal Entry</option>
               <option value="Invoice" ${_vdTypeFilter === 'Invoice' ? 'selected' : ''}>Sales Invoice</option>
               <option value="Order" ${_vdTypeFilter === 'Order' ? 'selected' : ''}>Sales Order</option>
-              <option value="Return" ${_vdTypeFilter === 'Return' ? 'selected' : ''}>Sales Return</option>
+              <option value="Reversal" ${_vdTypeFilter === 'Reversal' ? 'selected' : ''}>Sales Reversal</option>
             </select>
           </div>
         </div>
@@ -1986,8 +1986,8 @@
               ${filtered.map((e, index) => {
                 const typeBadge = e.type === 'Journal'
                    ? `<span class="tb-badge" style="background:#e0f2fe; color:#0369a1; border:1.5px solid #bae6fd; font-size:11px; padding:3px 8px; text-transform:none;">Journal Entry</span>`
-                   : (e.type === 'Return'
-                      ? `<span class="tb-badge" style="background:#fee2e2; color:#b91c1c; border:1.5px solid #fca5a5; font-size:11px; padding:3px 8px; text-transform:none;">Sales Return</span>`
+                   : (e.type === 'Reversal'
+                      ? `<span class="tb-badge" style="background:#fee2e2; color:#b91c1c; border:1.5px solid #fca5a5; font-size:11px; padding:3px 8px; text-transform:none;">Sales Reversal</span>`
                       : (e.type === 'Order'
                          ? `<span class="tb-badge" style="background:#e0e7ff; color:#4338ca; border:1.5px solid #c7d2fe; font-size:11px; padding:3px 8px; text-transform:none;">Sales Order</span>`
                          : `<span class="tb-badge" style="background:#dcfce7; color:#15803d; border:1.5px solid #bbf7d0; font-size:11px; padding:3px 8px; text-transform:none;">Sales Invoice</span>`));
@@ -2006,7 +2006,7 @@
                   statusBadge = `<span class="tb-badge" style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; font-size:11px; padding:3px 8px; text-transform:none;">Posted</span>`;
                 }
 
-                const amtColor = e.type === 'Journal' ? 'var(--blue-600)' : (e.type === 'Return' ? '#dc2626' : (e.type === 'Order' ? 'var(--emerald-700)' : '#059669'));
+                const amtColor = e.type === 'Journal' ? 'var(--blue-600)' : (e.type === 'Reversal' ? '#dc2626' : (e.type === 'Order' ? 'var(--emerald-700)' : '#059669'));
 
                 return `
                   <tr data-id="${e.id}" data-type="${e.type}" class="vd-row">
@@ -2078,7 +2078,7 @@
             ? draftedEntries.find(e => e.id === id)
             : postedEntries.find(e => e.id === id);
           if (entry) showFullJournalModal(entry, isDraft);
-        } else if (type === 'Invoice' || type === 'Return' || type === 'Order') {
+        } else if (type === 'Invoice' || type === 'Reversal' || type === 'Order') {
           if (isDraft) {
             editSalesDraft(id);
           } else {
@@ -2101,7 +2101,7 @@
           if (entry) {
             loadJournalEntry(entry, isDraft);
           }
-        } else if (type === 'Invoice' || type === 'Return' || type === 'Order') {
+        } else if (type === 'Invoice' || type === 'Reversal' || type === 'Order') {
           const list = isDraft
             ? (window.KYA_STORE.salesVouchersDrafts || [])
             : (window.KYA_STORE.salesVouchers || []);
