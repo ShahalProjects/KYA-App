@@ -1,4 +1,4 @@
-  function fmtNum(n) {
+﻿  function fmtNum(n) {
     if (!n || isNaN(n)) return '0.00';
     return Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
   }
@@ -1979,7 +1979,7 @@
                 <th>Particulars / Narration</th>
                 <th style="text-align: right;">Amount</th>
                 <th style="text-align: center;">Status</th>
-                <th style="width: 88px; text-align: center;">Actions</th>
+                
               </tr>
             </thead>
             <tbody>
@@ -2009,7 +2009,7 @@
                 const amtColor = e.type === 'Journal' ? 'var(--blue-600)' : (e.type === 'Reversal' ? '#dc2626' : (e.type === 'Order' ? 'var(--emerald-700)' : '#059669'));
 
                 return `
-                  <tr data-id="${e.id}" data-type="${e.type}" class="vd-row">
+                  <tr data-id="${e.id}" data-type="${e.type}" data-draft="${e.isDraft}" class="vd-row" style="cursor: pointer;">
                     <td style="color:#94a3b8; font-size:12px; font-weight:600; text-align:center;">${index + 1}</td>
                     <td style="white-space:nowrap;">${e.date || '—'}</td>
                     <td><span style="font-family: monospace; font-weight: 700; color: var(--slate-700);">${e.voucherNo || '—'}</span></td>
@@ -2017,24 +2017,7 @@
                     <td style="font-weight:500; color:var(--slate-800); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ohEsc(e.particulars)}</td>
                     <td style="text-align:right; font-weight:700; color:${amtColor}; white-space:nowrap;">₹&thinsp;${e.amount}</td>
                     <td style="text-align:center;">${statusBadge}</td>
-                    <td style="text-align:center; white-space:nowrap;">
-                      <button class="pt-view-btn vd-view" data-id="${e.id}" data-type="${e.type}" data-draft="${e.isDraft}" title="View Voucher" style="margin-right:4px;">
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                          <ellipse cx="7.5" cy="7.5" rx="6" ry="4.5" stroke="currentColor" stroke-width="1.4"/>
-                          <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.4"/>
-                        </svg>
-                      </button>
-                      <button class="pt-view-btn vd-edit" data-id="${e.id}" data-type="${e.type}" data-draft="${e.isDraft}" title="Edit Voucher" style="margin-right:4px;">
-                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-                          <path d="M11 2l3 3M3 10v3h3l8.5-8.5-3-3L3 10z" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </button>
-                      <button class="pt-row-del-btn vd-delete" data-id="${e.id}" data-type="${e.type}" title="Delete Voucher" style="width:32px;height:32px;border:1.5px solid #fecaca;border-radius:8px;background:#fff5f5;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:#dc2626;flex-shrink:0;">
-                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:block;flex-shrink:0;">
-                          <path d="M2 2l9 9M11 2l-9 9" stroke="#dc2626" stroke-width="1.7" stroke-linecap="round"/>
-                        </svg>
-                      </button>
-                    </td>
+
                   </tr>
                 `;
               }).join('')}
@@ -2067,11 +2050,11 @@
       });
     }
 
-    wrap.querySelectorAll('.vd-view').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = Number(btn.dataset.id);
-        const type = btn.dataset.type;
-        const isDraft = btn.dataset.draft === 'true';
+    wrap.querySelectorAll('.vd-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const id = Number(row.dataset.id);
+        const type = row.dataset.type;
+        const isDraft = row.dataset.draft === 'true';
 
         if (type === 'Journal') {
           const entry = isDraft
@@ -2085,47 +2068,6 @@
             viewPrintInvoice(id);
           }
         }
-      });
-    });
-
-    wrap.querySelectorAll('.vd-edit').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = Number(btn.dataset.id);
-        const type = btn.dataset.type;
-        const isDraft = btn.dataset.draft === 'true';
-
-        if (type === 'Journal') {
-          const entry = isDraft
-            ? draftedEntries.find(e => e.id === id)
-            : postedEntries.find(e => e.id === id);
-          if (entry) {
-            loadJournalEntry(entry, isDraft);
-          }
-        } else if (type === 'Invoice' || type === 'Reversal' || type === 'Order') {
-          const list = isDraft
-            ? (window.KYA_STORE.salesVouchersDrafts || [])
-            : (window.KYA_STORE.salesVouchers || []);
-          const inv = list.find(v => v.id === id);
-          if (inv) {
-            loadSalesInvoice(inv, isDraft);
-          }
-        }
-      });
-    });
-
-    wrap.querySelectorAll('.vd-delete').forEach(btn => {
-      btn.addEventListener('mouseenter', () => {
-        btn.style.background = '#fee2e2';
-        btn.style.borderColor = '#f87171';
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.background = '#fff5f5';
-        btn.style.borderColor = '#fecaca';
-      });
-      btn.addEventListener('click', () => {
-        const id = Number(btn.dataset.id);
-        const type = btn.dataset.type;
-        deleteVoucherFromDesk(type, id);
       });
     });
 
