@@ -1,13 +1,3 @@
-  // ══════════════════════════════════════════════════════════════════
-  //  SETTINGS & VAULT (Local Storage Backup / Restore)
-  // ══════════════════════════════════════════════════════════════════
-  let _settingsActiveTab = ''; // empty/welcome state by default
-  let _vaultWired = false;
-  let _activeFolderHandle = null;
-  let _activeFolderPermission = false;
-
-  const KYA_DB_NAME = 'KyaFolderStorage';
-  const KYA_STORE_NAME = 'handles';
   function getIndexedDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(KYA_DB_NAME, 1);

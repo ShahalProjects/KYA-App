@@ -1,4 +1,175 @@
-  function isSalesReturnInvoiceSelected() {
+﻿    const _salesRevPortal = (() => {
+    let el = document.getElementById('sales-rev-portal-dropdown');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sales-rev-portal-dropdown';
+      el.style.cssText = `
+        position: fixed;
+        z-index: 99999;
+        background: #ffffff;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,.06), 0 12px 32px -4px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.02);
+        max-height: 280px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        display: none;
+        min-width: 240px;
+        font-family: Inter, sans-serif;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+      `;
+      document.body.appendChild(el);
+    }
+
+    if (!document.getElementById('sales-rev-portal-styles')) {
+      const style = document.createElement('style');
+      style.id = 'sales-rev-portal-styles';
+      style.textContent = `
+        #sales-rev-portal-dropdown.open {
+          display: block !important;
+          animation: jeDropIn .14s cubic-bezier(.2,0,.2,1);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    let _activeInp    = null;
+    let _activeCb     = null;
+    let _highlightIdx = -1;
+    let _open         = false;
+
+    function _items() { return el.querySelectorAll('.je-drop-item'); }
+
+    function _setHL(idx) {
+      const items = _items();
+      items.forEach(it => it.classList.remove('highlighted'));
+      _highlightIdx = idx;
+      if (idx >= 0 && idx < items.length) {
+        items[idx].classList.add('highlighted');
+        items[idx].scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function _position(inp) {
+      const r          = inp.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom - 8;
+      const spaceAbove = r.top - 8;
+      const maxH       = Math.min(280, Math.max(spaceBelow, spaceAbove) - 8);
+      el.style.maxHeight = maxH + 'px';
+      el.style.width     = Math.max(r.width, 260) + 'px';
+      el.style.left      = r.left + 'px';
+      if (spaceBelow >= 140 || spaceBelow >= spaceAbove) {
+        el.style.top    = (r.bottom + 6) + 'px';
+        el.style.bottom = 'auto';
+      } else {
+        el.style.top    = 'auto';
+        el.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+      }
+    }
+
+    function open(inp, query, onSelect) {
+      _activeInp    = inp;
+      _activeCb     = onSelect;
+      _highlightIdx = -1;
+      const q = (query || '').toLowerCase().trim();
+
+      const matches = getIncomeLedgers()
+        .filter(l => {
+          const nm = l.name.toLowerCase().includes(q);
+          const ak = l.aliases && l.aliases.some(a => a.toLowerCase().includes(q));
+          return nm || ak;
+        })
+        .sort((a, b) => {
+          const as = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+          const bs = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+          return as - bs || a.name.localeCompare(b.name);
+        });
+
+      el.innerHTML = '';
+
+      if (!matches.length) {
+        el.innerHTML = `
+          <div class="je-drop-empty">
+            <svg class="je-drop-empty-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <circle cx="14" cy="14" r="9" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M21 21l6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span class="je-drop-empty-txt">No revenue account found</span>
+            <span class="je-drop-empty-sub">Try a different name or add it in Chart of Accounts</span>
+          </div>`;
+      } else {
+        const hdr = document.createElement('div');
+        hdr.className   = 'je-drop-header';
+        hdr.textContent = 'Income / Revenue Accounts';
+        el.appendChild(hdr);
+
+        matches.forEach(acct => {
+          const item = document.createElement('div');
+          item.className = 'je-drop-item';
+          const akaStr = acct.aliases && acct.aliases.length > 0 ? ` [A.K.A: ${acct.aliases.join(', ')}]` : '';
+          
+          const queryHighlight = (text, pat) => {
+            if (!pat) return text;
+            const idx = text.toLowerCase().indexOf(pat.toLowerCase());
+            if (idx < 0) return text;
+            return text.slice(0, idx)
+              + `<span class="je-drop-hl">${text.slice(idx, idx + pat.length)}</span>`
+              + text.slice(idx + pat.length);
+          };
+
+          item.innerHTML = `
+            <span class="je-drop-dot" style="background:#10b981"></span>
+            <span class="je-drop-name">${queryHighlight(acct.name, q)}${akaStr ? `<span style="font-size:11px;color:#94a3b8;margin-left:4px">${queryHighlight(akaStr, q)}</span>` : ''}</span>
+            ${acct.code ? `<span class="je-drop-code">${acct.code}</span>` : ''}
+          `;
+          item.addEventListener('mousedown', e => {
+            e.preventDefault();
+            close();
+            if (_activeCb) _activeCb(acct);
+          });
+          el.appendChild(item);
+        });
+      }
+
+      _position(inp);
+      el.classList.add('open');
+      _open = true;
+    }
+
+    function close() {
+      el.classList.remove('open');
+      _open         = false;
+      _highlightIdx = -1;
+      _activeInp    = null;
+    }
+
+    function isOpen()         { return _open; }
+    function moveHighlight(d) {
+      const items = _items();
+      if (!items.length) return;
+      _setHL(Math.max(0, Math.min(_highlightIdx + d, items.length - 1)));
+    }
+    function selectHighlighted() {
+      const items = _items();
+      const idx   = _highlightIdx >= 0 ? _highlightIdx : 0;
+      if (items[idx]) items[idx].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    }
+
+    function _reposition() { if (_open && _activeInp) _position(_activeInp); }
+    window.addEventListener('scroll', _reposition, true);
+    window.addEventListener('resize', _reposition);
+
+    document.addEventListener('mousedown', e => {
+      if (_open && !el.contains(e.target) && e.target !== _activeInp) close();
+    });
+
+    return { open, close, isOpen, moveHighlight, selectHighlighted };
+  })();
+
+
+
+function isSalesReturnInvoiceSelected() {
     if (currentSalesVoucherSubtype !== 'Return') return false;
     const triggerText = document.getElementById('salesInvoiceSelectTriggerText');
     return triggerText && triggerText.textContent !== 'Select Invoice/Order';
@@ -620,7 +791,7 @@
     }
   }
 
-  function renderSalesRows() {
+    function renderSalesRows() {
     renderSalesHeaders();
     const body = document.getElementById('salesItemBody');
     if (!body) return;
@@ -684,16 +855,23 @@
           </tr>
         `;
       } else {
+        const selectedLedger = incomeLedgers.find(l => l.id == row.revenueLedgerId);
+        const ledgerName = selectedLedger ? selectedLedger.name : '';
         trHtml = `
           <tr class="sales-row" data-row-index="${index}">
             <td>
-              <select class="sales-row-rev-acc je-input" style="border: none; background: transparent; box-shadow: none; padding: 0; ${isLocked ? 'cursor: not-allowed; color: var(--slate-500);' : ''}" ${isLocked ? 'disabled' : ''}>
-                <option value="">&mdash; Select Revenue Account &mdash;</option>
-                ${incomeLedgers.map(l => {
-                  const akaStr = l.aliases && l.aliases.length > 0 ? ` [A.K.A: ${l.aliases.join(', ')}]` : '';
-                  return `<option value="${l.id}" ${row.revenueLedgerId == l.id ? 'selected' : ''}>${l.name}${akaStr}</option>`;
-                }).join('')}
-              </select>
+              <div class="sales-rev-acc-wrap" style="position: relative; display: flex; align-items: center; width: 100%;">
+                <input type="text" class="sales-row-rev-acc-input je-input" 
+                  placeholder="Search revenue account..." 
+                  value="${ohEsc(ledgerName)}" 
+                  style="border: none; background: transparent; box-shadow: none; padding: 0; width: 100%; ${isLocked ? 'cursor: not-allowed; color: var(--slate-500);' : ''}" 
+                  data-ledger-id="${row.revenueLedgerId || ''}"
+                  autocomplete="off" spellcheck="false"
+                  ${isLocked ? 'disabled' : ''} />
+                <span class="sales-rev-acc-arrow" style="position: absolute; right: 4px; pointer-events: none; color: #94a3b8; display: flex; align-items: center;">
+                  <svg viewBox="0 0 14 14" fill="none" style="width: 12px; height: 12px;"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+              </div>
             </td>
             <td style="width: 150px;">
               <input type="number" class="sales-row-base je-input" value="${row.baseAmount === 0 ? '' : row.baseAmount}" placeholder="0.00" min="0" step="0.01" style="border: none; background: transparent; box-shadow: none; text-align: right; padding: 0;" />
@@ -735,7 +913,57 @@
       const tr = tempDiv.firstElementChild;
       body.appendChild(tr);
     });
+
+    // Wire up searchable select inputs
+    body.querySelectorAll('.sales-row-rev-acc-input').forEach(inp => {
+      const tr = inp.closest('tr');
+      const idx = parseInt(tr.dataset.rowIndex);
+      const row = salesRows[idx];
+
+      const triggerSearch = () => {
+        _salesRevPortal.open(inp, inp.value, (acct) => {
+          inp.value = acct.name;
+          inp.dataset.ledgerId = acct.id;
+          row.revenueLedgerId = acct.id;
+          // Trigger change event to update totals and rows
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      };
+
+      inp.addEventListener('focus', () => {
+        triggerSearch();
+      });
+
+      inp.addEventListener('input', () => {
+        triggerSearch();
+      });
+
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (!_salesRevPortal.isOpen()) {
+            triggerSearch();
+          } else {
+            _salesRevPortal.moveHighlight(1);
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (_salesRevPortal.isOpen()) {
+            _salesRevPortal.moveHighlight(-1);
+          }
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (_salesRevPortal.isOpen()) {
+            _salesRevPortal.selectHighlighted();
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          _salesRevPortal.close();
+        }
+      });
+    });
   }
+
 
   function addSalesRow() {
     if (currentSalesType === 'Product') {
@@ -753,7 +981,7 @@
     addSalesRow();
   }
 
-  function updateRowFromDOM(index, tr) {
+    function updateRowFromDOM(index, tr) {
     const row = salesRows[index];
     if (!row) return;
     
@@ -768,7 +996,6 @@
         if (qty > row.origQty) {
           qty = row.origQty;
           tr.querySelector('.sales-row-qty').value = qty;
-          showToast(`Quantity cannot exceed remaining quantity of ${row.origQty}.`, 'warning');
         }
         if (rate > row.origRate) {
           rate = row.origRate;
@@ -794,7 +1021,7 @@
       const taxAmt = afterDiscount * (row.tax / 100);
       row.amount = afterDiscount + taxAmt;
     } else {
-      row.revenueLedgerId = tr.querySelector('.sales-row-rev-acc').value;
+      row.revenueLedgerId = tr.querySelector('.sales-row-rev-acc-input')?.dataset.ledgerId || '';
       
       let baseAmount = parseFloat(tr.querySelector('.sales-row-base').value) || 0;
       let discount = parseFloat(tr.querySelector('.sales-row-discount').value) || 0;
@@ -826,6 +1053,7 @@
     tr.querySelector('.sales-row-amount').textContent = '₹ ' + fmtNum(row.amount);
     recalculateSalesTotals();
   }
+
 
   function calculateSubtotal() {
     let sub = 0;
@@ -1405,6 +1633,7 @@
   }
 
   function initSalesForm() {
+    window._editingSalesInvoice = null;
     updateVoucherSubtypeUI();
     const today = new Date().toISOString().split('T')[0];
     const dateEl = document.getElementById('salesDate');
@@ -1465,6 +1694,7 @@
     salesRows = [];
     addSalesRow();
     updateSalesReturnLockState();
+    recalculateSalesTotals();
   }
 
   function loadSalesInvoice(inv, isDraft) {
@@ -2003,8 +2233,13 @@
 
     if (isEditPosted) {
       const oldInv = window.KYA_STORE.salesVouchers.find(v => v.id === window._editingSalesInvoice.id);
-      if (oldInv && oldInv.refundJournalEntryIds) {
-        postedEntries = postedEntries.filter(e => !oldInv.refundJournalEntryIds.includes(e.id));
+      if (oldInv) {
+        if (oldInv.refundJournalEntryIds) {
+          postedEntries = postedEntries.filter(e => !oldInv.refundJournalEntryIds.includes(e.id));
+        }
+        if (oldInv.paymentJournalEntryId) {
+          postedEntries = postedEntries.filter(e => e.id !== oldInv.paymentJournalEntryId);
+        }
       }
     }
 
@@ -2087,6 +2322,50 @@
       }
     }
     
+    let paymentJournalEntryId = undefined;
+    if (currentSalesVoucherSubtype === 'Invoice' && paymentAmount > 0) {
+      const payAccount = coaLedgers.find(l => l.id == paymentAccountId);
+      const payAccountName = payAccount ? payAccount.name : 'Cash Account';
+      
+      const customer = coaLedgers.find(l => l.id == customerId);
+      const customerName = customer ? customer.name : 'Unknown Customer';
+      
+      const oldInv = isEditPosted ? window.KYA_STORE.salesVouchers.find(v => v.id === window._editingSalesInvoice.id) : null;
+      paymentJournalEntryId = oldInv ? (oldInv.paymentJournalEntryId || (Date.now() + 2)) : (Date.now() + 2);
+      
+      const paymentRows = [
+        {
+          id: 1,
+          type: 'By',
+          particular: payAccountName,
+          debit: paymentAmount.toFixed(2),
+          credit: ''
+        },
+        {
+          id: 2,
+          type: 'To',
+          particular: customerName,
+          debit: '',
+          credit: paymentAmount.toFixed(2)
+        }
+      ];
+      
+      const paymentEntry = {
+        id:             paymentJournalEntryId,
+        date:           date,
+        voucherNo:      `REC-${invoiceNo}`,
+        preparedBy:     'Sales Module',
+        departmentId:   '',
+        isBudget:       false,
+        firstParticular: payAccountName,
+        amount:         fmtNum(paymentAmount),
+        allRows:        paymentRows,
+        narration:      `Payment received against Sales Invoice ${invoiceNo} from customer ${customerName}. Paid via ${payAccountName}.`
+      };
+      
+      postedEntries.unshift(paymentEntry);
+    }
+    
     const invoiceData = {
       id: isEditPosted ? window._editingSalesInvoice.id : Date.now(),
       type: currentSalesType,
@@ -2113,6 +2392,7 @@
       excessAmount: excessAmount > 0 ? excessAmount : undefined,
       refundedAmount: excessAmount > 0 ? refundedAmount : undefined,
       refundJournalEntryIds: excessAmount > 0 ? refundJournalEntryIds : undefined,
+      paymentJournalEntryId,
       rows: JSON.parse(JSON.stringify(salesRows)),
       journalEntryId,
       postedAt: isEditPosted ? (window.KYA_STORE.salesVouchers.find(v => v.id === window._editingSalesInvoice.id)?.postedAt || Date.now()) : Date.now()
@@ -2214,7 +2494,6 @@
         paidAmount = 0;
       }
     }
-    const unpaidAmount = invoice.total - paidAmount;
     
     if (isOrd) {
       if (paidAmount > 0) {
@@ -2241,8 +2520,8 @@
       }
     } else if (isRet) {
       if (isReturnAgainstOrder) {
-        // ── Sales Order Reversal ──────────────────────────────────────────────
-        // Accounting effect: only Advance from Customers ↔ Cash/Bank
+        // â”€â”€ Sales Order Reversal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // Accounting effect: only Advance from Customers â†” Cash/Bank
         // (and Refund Payable for any amount not yet refunded)
         // 
         // Dr  Advance from Customers   origPaidAmt
@@ -2290,7 +2569,7 @@
         }
 
       } else {
-        // ── Sales Invoice Reversal ────────────────────────────────────────────
+        // â”€â”€ Sales Invoice Reversal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // SALES REVERSAL JOURNAL ENTRIES (Debit Sales Reversals & tax, Credit Customer/Cash)
         if (paidAmount > 0) {
           const payAccount = coaLedgers.find(l => l.id == invoice.paymentAccountId);
@@ -2436,29 +2715,14 @@
         }
       }
     } else {
-      // ORIGINAL SALES INVOICE Posting (existing code)
-      if (unpaidAmount > 0) {
-        journalRows.push({
-          id: journalRows.length + 1,
-          type: 'By',
-          particular: customerName,
-          debit: unpaidAmount.toFixed(2),
-          credit: ''
-        });
-      }
-      
-      if (paidAmount > 0) {
-        const payAccount = coaLedgers.find(l => l.id == invoice.paymentAccountId);
-        const payAccountName = payAccount ? payAccount.name : 'Cash Account';
-        
-        journalRows.push({
-          id: journalRows.length + 1,
-          type: 'By',
-          particular: payAccountName,
-          debit: paidAmount.toFixed(2),
-          credit: ''
-        });
-      }
+      // ORIGINAL SALES INVOICE Posting (modified: debit customer for full amount)
+      journalRows.push({
+        id: journalRows.length + 1,
+        type: 'By',
+        particular: customerName,
+        debit: invoice.total.toFixed(2),
+        credit: ''
+      });
       
       if (invoice.tdsTcsMode === 'TDS' && invoice.tdsTcsAmount > 0) {
         const tdsLedgerId = getOrCreateSystemLedger('TDS Receivable', 'sg-stla');
@@ -2710,7 +2974,7 @@
     if (list.length === 0) {
       wrap.innerHTML = `
         <div style="text-align: center; padding: 60px 20px; color: var(--slate-400);">
-          <div style="font-size: 40px; margin-bottom: 12px;">📄</div>
+          <div style="font-size: 40px; margin-bottom: 12px;">ðŸ“„</div>
           <div style="font-weight: 600; font-size: 15px; color: var(--slate-500);">No Posted Invoices Yet</div>
           <p style="font-size: 13px; margin: 4px 0 16px;">Post a Sales Voucher to see it here.</p>
           <button class="btn btn-primary" onclick="currentSalesVoucherSubtype = 'Invoice'; window._editingSalesInvoice = null; initSalesForm(); openTab('sales_voucher');">Create Invoice</button>
@@ -2849,6 +3113,9 @@
         if (invoice.refundJournalEntryIds) {
           postedEntries = postedEntries.filter(e => !invoice.refundJournalEntryIds.includes(e.id));
         }
+        if (invoice.paymentJournalEntryId) {
+          postedEntries = postedEntries.filter(e => e.id !== invoice.paymentJournalEntryId);
+        }
         
         let successMsg = `Invoice "${invoice.invoiceNo}" deleted.`;
         if (isRet) successMsg = `Sales Reversal "${invoice.invoiceNo}" deleted.`;
@@ -2900,7 +3167,7 @@
       <div class="coa-modal-card" style="max-width: 420px; padding: 24px;">
         <div class="coa-modal-hdr" style="margin-bottom: 20px;">
           <div class="coa-modal-title" style="font-size: 16px; font-weight: 700; color: var(--slate-900);">Record Refund - ${inv.invoiceNo}</div>
-          <button class="coa-modal-close" onclick="document.getElementById('refundModalOverlay').remove()">✕</button>
+          <button class="coa-modal-close" onclick="document.getElementById('refundModalOverlay').remove()">âœ•</button>
         </div>
         
         <div style="background: var(--slate-50); border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 13px; color: var(--slate-700); line-height: 1.6;">
@@ -3042,7 +3309,7 @@
     if (list.length === 0) {
       wrap.innerHTML = `
         <div style="text-align: center; padding: 60px 20px; color: var(--slate-400);">
-          <div style="font-size: 40px; margin-bottom: 12px;">📝</div>
+          <div style="font-size: 40px; margin-bottom: 12px;">ðŸ“</div>
           <div style="font-weight: 600; font-size: 15px; color: var(--slate-500);">No Drafts Found</div>
           <p style="font-size: 13px; margin: 4px 0 16px;">Save an invoice as a draft to see it here.</p>
         </div>
@@ -3147,327 +3414,299 @@
     const list = window.KYA_STORE.salesVouchers || [];
     const inv = list.find(v => v.id === id);
     if (!inv) return;
-    
+
+    // helpers
+    function amtWords(n) {
+      const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+        'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen',
+        'Seventeen','Eighteen','Nineteen'];
+      const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+      function toW(num) {
+        if (num === 0) return '';
+        if (num < 20) return ones[num] + ' ';
+        if (num < 100) return tens[Math.floor(num/10)] + (num%10 ? ' '+ones[num%10] : '') + ' ';
+        return ones[Math.floor(num/100)] + ' Hundred ' + toW(num%100);
+      }
+      let num = Math.round(n);
+      if (num === 0) return 'Zero Rupees Only';
+      let result = '';
+      const cr = Math.floor(num / 10000000); num %= 10000000;
+      const lac = Math.floor(num / 100000);  num %= 100000;
+      const th  = Math.floor(num / 1000);    num %= 1000;
+      const hu  = Math.floor(num / 100);     num %= 100;
+      if (cr)  result += toW(cr)  + 'Crore ';
+      if (lac) result += toW(lac) + 'Lakh ';
+      if (th)  result += toW(th)  + 'Thousand ';
+      if (hu)  result += toW(hu)  + 'Hundred ';
+      if (num) result += toW(num);
+      return 'INR ' + result.trim() + ' Only';
+    }
+
+    // company data
+    let co = {};
+    try { co = JSON.parse(localStorage.getItem('kya_company_details')) || {}; } catch(e) {}
+    const coName    = co.name    || 'Your Company';
+    const coAddr    = co.address || '';
+    const coPhone   = co.phone   || '';
+    const coEmail   = co.email   || '';
+    const coWebsite = co.website || '';
+    const coPAN     = co.pan     || '';
+    const gstins    = co.gstins || [];
+    const primaryGstin = gstins.find(g => g.isPrimary) || gstins[0] || null;
+    const coGSTIN   = primaryGstin ? primaryGstin.gstin : '';
+    let logoHtml = '';
+    if (co.iconImage) {
+      logoHtml = `<img src="${co.iconImage}" style="width:68px;height:68px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;" alt="Logo">`;
+    } else {
+      const initials = (coName.trim().split(/\s+/).slice(0,2).map(w=>w[0])).join('').toUpperCase() || 'CO';
+      logoHtml = `<div style="width:68px;height:68px;border-radius:8px;background:linear-gradient(135deg,#2563eb,#059669);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;">${initials}</div>`;
+    }
+    const banks = co.banks || [];
+    const primaryBank = banks.find(b => b.isPrimary) || banks[0] || null;
+
+    // invoice meta
     let orderAdvanceAmount = 0;
     if (inv.orderNo && !inv.isOrder && !inv.isReturn) {
       const linkedOrder = (window.KYA_STORE.salesVouchers || []).find(v => v.isOrder && v.invoiceNo.toLowerCase() === inv.orderNo.toLowerCase());
       if (linkedOrder) {
-        if (linkedOrder.paymentStatus === 'Full Payment') {
-          orderAdvanceAmount = linkedOrder.total;
-        } else if (linkedOrder.paymentStatus === 'Partial Payment') {
-          orderAdvanceAmount = linkedOrder.paymentAmount || 0;
-        }
+        if (linkedOrder.paymentStatus === 'Full Payment') orderAdvanceAmount = linkedOrder.total;
+        else if (linkedOrder.paymentStatus === 'Partial Payment') orderAdvanceAmount = linkedOrder.paymentAmount || 0;
       }
     }
-    
+
     const customer = coaLedgers.find(l => l.id == inv.customerId) || { name: 'Unknown Customer' };
-    
     let execName = '';
     if (inv.salesExecutiveId) {
       const execEmp = ohEmployees.find(e => e.id == inv.salesExecutiveId);
-      if (execEmp) {
-        execName = execEmp.name;
-      }
+      if (execEmp) execName = execEmp.name;
     }
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'inv-modal-overlay';
-    overlay.id = 'salesInvoicePrintOverlay';
-    
+
+    const isReturn = inv.isReturn;
+    const isOrder  = inv.isOrder;
+    const docTitle = isReturn ? 'Credit Note / Sales Reversal' : isOrder ? 'Sales Order' : 'Tax Invoice';
+    const supplyType = inv.salesSupplyType || 'Intra-State (CGST + SGST)';
+    const isInter = supplyType === 'Inter-State (IGST)' || supplyType === 'SEZ With Tax';
+    const accentColor = isReturn ? '#b91c1c' : isOrder ? '#0369a1' : '#1d4ed8';
+
+    // rows
     let rowsHtml = '';
     if (inv.type === 'Product') {
       rowsHtml = inv.rows.map((r, i) => {
-        const base = r.qty * r.rate;
-        const discAmt = r.discountType === 'pct' ? (base * (r.discount / 100)) : r.discount;
-        const itemTotal = base - discAmt;
-        const taxAmt = itemTotal * (r.tax / 100);
-        const finalAmt = itemTotal + taxAmt;
-        const discStr = r.discountType === 'pct' ? `${r.discount}% (₹${fmtNum(discAmt)})` : `₹${fmtNum(r.discount)}`;
-        return `
-          <tr style="border-bottom: 1px solid var(--slate-100);">
-            <td style="padding: 10px; font-weight: 500;">${i+1}</td>
-            <td style="padding: 10px; font-weight: 600;">${ohEsc(r.item)}</td>
-            <td style="padding: 10px; text-align: right;">${r.qty}</td>
-            <td style="padding: 10px; text-align: right;">₹ ${fmtNum(r.rate)}</td>
-            <td style="padding: 10px; text-align: right;">${discStr}</td>
-            <td style="padding: 10px; text-align: right;">${r.tax}%</td>
-            <td style="padding: 10px; text-align: right; font-weight: 700;">₹ ${fmtNum(finalAmt)}</td>
-          </tr>
-        `;
+        const base    = r.qty * r.rate;
+        const discAmt = r.discountType === 'pct' ? (base * (r.discount / 100)) : (r.discount || 0);
+        const taxable = Math.max(0, base - discAmt);
+        const taxAmt  = taxable * (r.tax / 100);
+        const total   = taxable + taxAmt;
+        const hsnCol  = r.hsn || '';
+        let taxCols = '';
+        if (isInter) {
+          taxCols = `<td style="padding:7px 8px;text-align:right;">${r.tax}%</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(taxAmt)}</td>`;
+        } else {
+          const halfP = parseFloat(r.tax) / 2;
+          const halfA = taxAmt / 2;
+          taxCols = `<td style="padding:7px 8px;text-align:right;">${halfP}%</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(halfA)}</td><td style="padding:7px 8px;text-align:right;">${halfP}%</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(halfA)}</td>`;
+        }
+        return `<tr style="border-bottom:1px solid #e8ecf0;"><td style="padding:7px 8px;text-align:center;">${i+1}</td><td style="padding:7px 8px;font-weight:500;">${ohEsc(r.item)}</td><td style="padding:7px 8px;text-align:center;">${ohEsc(hsnCol)}</td><td style="padding:7px 8px;text-align:right;">${r.qty}</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(r.rate)}</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(taxable)}</td>${taxCols}<td style="padding:7px 8px;text-align:right;font-weight:600;">&#8377; ${fmtNum(total)}</td></tr>`;
       }).join('');
     } else {
       rowsHtml = inv.rows.map((r, i) => {
-        const revenueName = (coaLedgers.find(l => l.id == r.revenueLedgerId) || { name: 'Revenue Account' }).name;
-        const base = r.baseAmount;
-        const discAmt = r.discountType === 'pct' ? (base * (r.discount / 100)) : r.discount;
-        const itemTotal = base - discAmt;
-        const taxAmt = itemTotal * (r.tax / 100);
-        const finalAmt = itemTotal + taxAmt;
-        const discStr = r.discountType === 'pct' ? `${r.discount}% (₹${fmtNum(discAmt)})` : `₹${fmtNum(r.discount)}`;
-        return `
-          <tr style="border-bottom: 1px solid var(--slate-100);">
-            <td style="padding: 10px; font-weight: 500;">${i+1}</td>
-            <td style="padding: 10px; font-weight: 600;">${ohEsc(revenueName)}</td>
-            <td style="padding: 10px; text-align: right;">1</td>
-            <td style="padding: 10px; text-align: right;">₹ ${fmtNum(r.baseAmount)}</td>
-            <td style="padding: 10px; text-align: right;">${discStr}</td>
-            <td style="padding: 10px; text-align: right;">${r.tax}%</td>
-            <td style="padding: 10px; text-align: right; font-weight: 700;">₹ ${fmtNum(finalAmt)}</td>
-          </tr>
-        `;
+        const revenueName = (coaLedgers.find(l => l.id == r.revenueLedgerId) || { name: 'Service Account' }).name;
+        const base    = r.baseAmount || 0;
+        const discAmt = r.discountType === 'pct' ? (base * (r.discount / 100)) : (r.discount || 0);
+        const taxable = Math.max(0, base - discAmt);
+        const taxAmt  = taxable * (r.tax / 100);
+        const total   = taxable + taxAmt;
+        const sacCol  = r.sac || r.hsn || '';
+        let taxCols = '';
+        if (isInter) {
+          taxCols = `<td style="padding:7px 8px;text-align:right;">${r.tax}%</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(taxAmt)}</td>`;
+        } else {
+          const halfP = parseFloat(r.tax) / 2;
+          const halfA = taxAmt / 2;
+          taxCols = `<td style="padding:7px 8px;text-align:right;">${halfP}%</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(halfA)}</td><td style="padding:7px 8px;text-align:right;">${halfP}%</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(halfA)}</td>`;
+        }
+        return `<tr style="border-bottom:1px solid #e8ecf0;"><td style="padding:7px 8px;text-align:center;">${i+1}</td><td style="padding:7px 8px;font-weight:500;">${ohEsc(revenueName)}</td><td style="padding:7px 8px;text-align:center;">${ohEsc(sacCol)}</td><td style="padding:7px 8px;text-align:right;">1</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(base)}</td><td style="padding:7px 8px;text-align:right;">&#8377; ${fmtNum(taxable)}</td>${taxCols}<td style="padding:7px 8px;text-align:right;font-weight:600;">&#8377; ${fmtNum(total)}</td></tr>`;
       }).join('');
     }
-    
-    let taxDetailsHtml = '';
+
+    let taxHeaderCols = '';
+    if (isInter) {
+      taxHeaderCols = `<th style="padding:8px;text-align:right;width:60px;">IGST %</th><th style="padding:8px;text-align:right;width:80px;">IGST Amt</th>`;
+    } else {
+      taxHeaderCols = `<th style="padding:8px;text-align:right;width:60px;">CGST %</th><th style="padding:8px;text-align:right;width:80px;">CGST Amt</th><th style="padding:8px;text-align:right;width:60px;">SGST %</th><th style="padding:8px;text-align:right;width:80px;">SGST Amt</th>`;
+    }
+    const colSpanTotal = isInter ? 7 : 9;
+
+    // tax summary
     const taxSummary = {};
     inv.rows.forEach(r => {
-      const base = inv.type === 'Product' ? (r.qty * r.rate) : r.baseAmount;
-      const discAmt = r.discountType === 'pct' ? (base * (r.discount / 100)) : r.discount;
-      const val = Math.max(0, base - discAmt);
-      const taxAmt = val * (r.tax / 100);
+      const base = inv.type === 'Product' ? (r.qty * r.rate) : (r.baseAmount || 0);
+      const discAmt = r.discountType === 'pct' ? (base * (r.discount / 100)) : (r.discount || 0);
+      const taxable = Math.max(0, base - discAmt);
+      const taxAmt  = taxable * (r.tax / 100);
       if (r.tax > 0) {
-        if (!taxSummary[r.tax]) {
-          taxSummary[r.tax] = { taxable: 0, taxAmt: 0 };
-        }
-        taxSummary[r.tax].taxable += val;
-        taxSummary[r.tax].taxAmt += taxAmt;
+        if (!taxSummary[r.tax]) taxSummary[r.tax] = { taxable: 0, taxAmt: 0 };
+        taxSummary[r.tax].taxable += taxable;
+        taxSummary[r.tax].taxAmt  += taxAmt;
       }
     });
-    
-    const supplyType = inv.salesSupplyType || 'Intra-State (CGST + SGST)';
+
+    let taxDetailRows = '';
     for (const pct in taxSummary) {
-      const taxable = taxSummary[pct].taxable;
-      const taxAmt = taxSummary[pct].taxAmt;
-      if (supplyType === 'Intra-State (CGST + SGST)' || supplyType === 'Deemed Export') {
-        const halfPct = parseFloat(pct) / 2;
-        const halfAmt = taxAmt / 2;
-        taxDetailsHtml += `
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-500); margin-top: 4px;">
-            <span>CGST @ ${halfPct}% (on ₹ ${fmtNum(taxable)})</span>
-            <span>₹ ${fmtNum(halfAmt)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-500); margin-top: 4px;">
-            <span>SGST @ ${halfPct}% (on ₹ ${fmtNum(taxable)})</span>
-            <span>₹ ${fmtNum(halfAmt)}</span>
-          </div>
-        `;
-      } else if (supplyType === 'Inter-State (IGST)' || supplyType === 'SEZ With Tax') {
-        taxDetailsHtml += `
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-500); margin-top: 4px;">
-            <span>IGST @ ${pct}% (on ₹ ${fmtNum(taxable)})</span>
-            <span>₹ ${fmtNum(taxAmt)}</span>
-          </div>
-        `;
+      const { taxable, taxAmt } = taxSummary[pct];
+      if (isInter) {
+        taxDetailRows += `<tr><td style="padding:5px 8px;">IGST @ ${pct}%</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(taxable)}</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(taxAmt)}</td></tr>`;
       } else {
-        taxDetailsHtml += `
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-500); margin-top: 4px;">
-            <span>GST @ ${pct}% (on ₹ ${fmtNum(taxable)})</span>
-            <span>₹ ${fmtNum(taxAmt)}</span>
-          </div>
-        `;
+        const halfP = parseFloat(pct)/2;
+        const halfA = taxAmt/2;
+        taxDetailRows += `<tr><td style="padding:5px 8px;">CGST @ ${halfP}%</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(taxable)}</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(halfA)}</td></tr>`;
+        taxDetailRows += `<tr><td style="padding:5px 8px;">SGST @ ${halfP}%</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(taxable)}</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(halfA)}</td></tr>`;
       }
     }
-    
+
+    // payment summary
+    const balanceDue = Math.max(0, inv.total - orderAdvanceAmount - (inv.paymentAmount || 0));
+    const taxBreakHdr = taxDetailRows ? `<tr><td colspan="2" style="padding:4px 8px 2px;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:.06em;">Tax Breakdown</td></tr>${taxDetailRows}` : '';
+    let paymentSummaryHtml = '';
+    if (isReturn) {
+      paymentSummaryHtml = `<tr><td style="padding:5px 8px;color:#475569;">Sub Total</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(inv.subTotal)}</td></tr>${taxBreakHdr}<tr style="background:#fff1f2;"><td style="padding:7px 8px;font-weight:700;color:#be123c;">Credit Amount</td><td style="padding:7px 8px;text-align:right;font-weight:800;color:#be123c;">&#8377; ${fmtNum(inv.total)}</td></tr>`;
+    } else if (isOrder) {
+      paymentSummaryHtml = `<tr><td style="padding:5px 8px;color:#475569;">Sub Total</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(inv.subTotal)}</td></tr>${taxBreakHdr}${inv.tdsTcsMode !== 'None' ? `<tr><td style="padding:5px 8px;color:#475569;">${inv.tdsTcsMode} (${inv.tdsTcsRate}%)</td><td style="padding:5px 8px;text-align:right;">${inv.tdsTcsMode === 'TDS' ? '&minus;' : '+'} &#8377; ${fmtNum(inv.tdsTcsAmount)}</td></tr>` : ''}${inv.adjustments !== 0 ? `<tr><td style="padding:5px 8px;color:#475569;">Adjustments</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(inv.adjustments)}</td></tr>` : ''}<tr style="background:#e0f2fe;"><td style="padding:7px 8px;font-weight:700;color:#0369a1;">Order Total</td><td style="padding:7px 8px;text-align:right;font-weight:800;color:#0369a1;">&#8377; ${fmtNum(inv.total)}</td></tr>${inv.paymentStatus && inv.paymentStatus !== 'Not Paid' ? `<tr><td style="padding:5px 8px;color:#475569;">Advance Paid</td><td style="padding:5px 8px;text-align:right;color:#059669;font-weight:600;">&#8377; ${fmtNum(inv.paymentAmount)}</td></tr>` : ''}<tr style="background:#f0fdf4;"><td style="padding:7px 8px;font-weight:700;color:#15803d;">Balance Due</td><td style="padding:7px 8px;text-align:right;font-weight:800;color:${balanceDue > 0 ? '#dc2626' : '#15803d'};">&#8377; ${fmtNum(balanceDue)}</td></tr>`;
+    } else {
+      paymentSummaryHtml = `<tr><td style="padding:5px 8px;color:#475569;">Sub Total</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(inv.subTotal)}</td></tr>${taxBreakHdr}${inv.tdsTcsMode !== 'None' ? `<tr><td style="padding:5px 8px;color:#475569;">${inv.tdsTcsMode} (${inv.tdsTcsRate}%)</td><td style="padding:5px 8px;text-align:right;">${inv.tdsTcsMode === 'TDS' ? '&minus;' : '+'} &#8377; ${fmtNum(inv.tdsTcsAmount)}</td></tr>` : ''}${inv.adjustments !== 0 ? `<tr><td style="padding:5px 8px;color:#475569;">Adjustments</td><td style="padding:5px 8px;text-align:right;">&#8377; ${fmtNum(inv.adjustments)}</td></tr>` : ''}<tr style="background:#f8fafc;border-top:1.5px solid #cbd5e1;"><td style="padding:8px;font-weight:800;font-size:14px;">Grand Total</td><td style="padding:8px;text-align:right;font-weight:800;font-size:14px;">&#8377; ${fmtNum(inv.total)}</td></tr>${orderAdvanceAmount > 0 ? `<tr><td style="padding:5px 8px;color:#475569;">Order Advance Applied</td><td style="padding:5px 8px;text-align:right;color:#059669;font-weight:600;">&minus; &#8377; ${fmtNum(orderAdvanceAmount)}</td></tr>` : ''}${inv.paymentStatus && inv.paymentStatus !== 'Not Paid' && inv.paymentStatus !== 'No Refund' ? `<tr><td style="padding:5px 8px;color:#475569;">Amount Paid (${inv.paymentStatus})</td><td style="padding:5px 8px;text-align:right;color:#059669;font-weight:600;">&#8377; ${fmtNum(inv.paymentAmount)}</td></tr>` : ''}<tr style="background:${balanceDue > 0 ? '#fff1f2' : '#f0fdf4'};"><td style="padding:7px 8px;font-weight:800;color:${balanceDue > 0 ? '#be123c' : '#15803d'};">Balance Due</td><td style="padding:7px 8px;text-align:right;font-weight:800;color:${balanceDue > 0 ? '#dc2626' : '#15803d'};">&#8377; ${fmtNum(balanceDue)}</td></tr>`;
+    }
+
+    // bank payment info
+    let bankHtml = '';
+    if (primaryBank) {
+      bankHtml = `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;background:#f8fafc;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:8px;">Payment Information</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:12px;">${primaryBank.bankName ? `<div><span style="color:#94a3b8;">Bank:</span> <strong>${ohEsc(primaryBank.bankName)}</strong></div>` : ''}${primaryBank.accNo ? `<div><span style="color:#94a3b8;">Account No:</span> <strong>${ohEsc(primaryBank.accNo)}</strong></div>` : ''}${primaryBank.ifsc ? `<div><span style="color:#94a3b8;">IFSC Code:</span> <strong>${ohEsc(primaryBank.ifsc)}</strong></div>` : ''}${primaryBank.branch ? `<div><span style="color:#94a3b8;">Branch:</span> <strong>${ohEsc(primaryBank.branch)}</strong></div>` : ''}${primaryBank.type ? `<div><span style="color:#94a3b8;">Account Type:</span> <strong>${ohEsc(primaryBank.type)}</strong></div>` : ''}</div></div>`;
+    } else {
+      bankHtml = `<div style="font-size:11.5px;color:#94a3b8;font-style:italic;padding:8px 0;">No bank account configured. Add one in Company Profile &amp; Vault &rarr; Banking.</div>`;
+    }
+
+    const notesText = inv.notes || (isReturn ? 'This credit note is issued against the original invoice. Please contact us for any queries.' : isOrder ? 'This is a confirmed Sales Order. Invoice will be raised upon delivery.' : 'Thank you for your business! Please settle the balance by the due date.');
+    const totalWords = amtWords(inv.total);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'inv-modal-overlay';
+    overlay.id = 'salesInvoicePrintOverlay';
+
     overlay.innerHTML = `
-      <div class="inv-modal-card" style="padding: 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1.5px solid var(--slate-100); background: var(--slate-50); border-radius: 20px 20px 0 0;">
-          <div style="font-weight: 700; color: var(--slate-800);">${inv.isReturn ? 'Sales Reversal Preview' : (inv.isOrder ? 'Sales Order Preview' : 'Invoice Preview')}</div>
-          <div style="display: flex; gap: 12px; align-items: center;">
-            <button onclick="loadSalesInvoice((window.KYA_STORE.salesVouchers || []).find(v => v.id === ${inv.id}), false); document.getElementById('salesInvoicePrintOverlay')?.remove();" title="Edit Invoice" style="background: var(--blue-50); border: 1.5px solid var(--blue-100); border-radius: 6px; padding: 8px; cursor: pointer; color: var(--blue-600); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='var(--blue-100)'" onmouseout="this.style.background='var(--blue-50)'">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-            </button>
-            <button onclick="deleteSalesInvoice(${inv.id}); document.getElementById('salesInvoicePrintOverlay')?.remove();" title="Delete Invoice" style="background: var(--red-50); border: 1.5px solid var(--red-100); border-radius: 6px; padding: 8px; cursor: pointer; color: var(--red-600); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='var(--red-100)'" onmouseout="this.style.background='var(--red-50)'">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
-            <button class="btn btn-secondary" id="btnPrintInvoiceAction" style="padding: 8px 16px;">
-              <svg viewBox="0 0 16 16" fill="none" style="width: 14px; height: 14px; margin-right: 6px; display: inline-block; vertical-align: middle;">
-                <path d="M4 5v-3h8v3M2 5h12v7h-3v3H5v-3H2V5zm3 4h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-              </svg>
-              Print
-            </button>
-            <button class="btn btn-danger" id="btnCloseInvoiceAction" style="padding: 8px 16px;">Close</button>
+      <div class="inv-modal-card" style="padding:0;max-width:900px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1.5px solid #e2e8f0;background:#f8fafc;border-radius:20px 20px 0 0;gap:12px;">
+          <div style="font-size:13px;font-weight:700;color:#334155;">${docTitle} &mdash; <span style="color:${accentColor};">${ohEsc(inv.invoiceNo)}</span></div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button onclick="loadSalesInvoice((window.KYA_STORE.salesVouchers||[]).find(v=>v.id===${inv.id}),false);document.getElementById('salesInvoicePrintOverlay')?.remove();" title="Edit" style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:6px;padding:7px;cursor:pointer;color:#2563eb;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button onclick="deleteSalesInvoice(${inv.id});document.getElementById('salesInvoicePrintOverlay')?.remove();" title="Delete" style="background:#fff1f2;border:1.5px solid #fecdd3;border-radius:6px;padding:7px;cursor:pointer;color:#e11d48;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='#ffe4e6'" onmouseout="this.style.background='#fff1f2'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            <button class="btn btn-secondary" id="btnPrintInvoiceAction" style="padding:7px 16px;height:36px;font-size:13px;display:flex;align-items:center;gap:6px;"><svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px;stroke:currentColor;stroke-width:1.4;"><path d="M4 5v-3h8v3M2 5h12v7h-3v3H5v-3H2V5zm3 4h6" stroke-linecap="round"/></svg>Print</button>
+            <button class="btn btn-danger" id="btnCloseInvoiceAction" style="padding:7px 16px;height:36px;font-size:13px;">&times; Close</button>
           </div>
         </div>
-        
-        <div id="invoicePrintArea" style="padding: 40px; background: #fff; color: #1e293b;">
-          <style>
-            @media print {
-              body * { visibility: hidden; }
-              #invoicePrintArea, #invoicePrintArea * { visibility: visible; }
-              #invoicePrintArea { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
-            }
-          </style>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
-            <div>
-              <div style="font-size: 26px; font-weight: 900; color: var(--blue-800); letter-spacing: -1px; display: flex; align-items: center; gap: 8px;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--accent);">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
-                </svg>
-                Keep Your Account (KYA)
-              </div>
-              <div style="font-size: 13px; color: var(--slate-500); margin-top: 6px; font-weight: 500;">
-                Your Trusted Cloud Accounting Suite
+        <div id="invoicePrintArea" style="padding:28px 36px;background:#fff;color:#1e293b;font-family:'Inter',Arial,sans-serif;font-size:12.5px;line-height:1.5;">
+          <style>@media print{body *{visibility:hidden}#invoicePrintArea,#invoicePrintArea *{visibility:visible}#invoicePrintArea{position:absolute;left:0;top:0;width:100%;padding:20px;margin:0;box-sizing:border-box}}</style>
+          <!-- HEADER -->
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid ${accentColor};padding-bottom:16px;margin-bottom:16px;">
+            <div style="display:flex;gap:14px;align-items:flex-start;flex:1;">
+              ${logoHtml}
+              <div>
+                <div style="font-size:16px;font-weight:900;color:#0f172a;margin-bottom:2px;">${ohEsc(coName)}</div>
+                ${coAddr   ? `<div style="font-size:11px;color:#475569;max-width:280px;white-space:pre-line;">${ohEsc(coAddr)}</div>` : ''}
+                ${coPhone  ? `<div style="font-size:11px;color:#475569;">Ph: ${ohEsc(coPhone)}</div>` : ''}
+                ${coEmail  ? `<div style="font-size:11px;color:#475569;">${ohEsc(coEmail)}</div>` : ''}
+                ${coWebsite? `<div style="font-size:11px;color:#2563eb;">${ohEsc(coWebsite)}</div>` : ''}
+                ${coGSTIN  ? `<div style="font-size:11px;color:#334155;margin-top:4px;font-weight:700;">GSTIN: ${ohEsc(coGSTIN)}</div>` : ''}
+                ${coPAN    ? `<div style="font-size:11px;color:#334155;font-weight:700;">PAN: ${ohEsc(coPAN)}</div>` : ''}
               </div>
             </div>
-            <div style="text-align: right;">
-              <h1 style="font-size: 32px; font-weight: 900; text-transform: uppercase; color: var(--slate-800); margin: 0; letter-spacing: -0.5px;">${inv.isReturn ? 'Credit Note / Sales Reversal' : (inv.isOrder ? 'Sales Order' : 'Tax Invoice')}</h1>
-              <div style="font-size: 14px; font-weight: 700; color: var(--blue-700); margin-top: 4px;"># ${ohEsc(inv.invoiceNo)}</div>
-            </div>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; border-bottom: 2px solid var(--slate-100); padding-bottom: 30px; margin-bottom: 30px;">
-            <div>
-              <h3 style="font-size: 11px; text-transform: uppercase; color: var(--slate-400); letter-spacing: 0.1em; margin-bottom: 12px; font-weight: 700;">Billed To:</h3>
-              <div style="font-size: 16px; font-weight: 800; color: var(--slate-900);">${ohEsc(customer.name)}</div>
-              <div style="font-size: 13px; color: var(--slate-500); margin-top: 4px; font-weight: 500;">Trade Receivables Account</div>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13.5px;">
-              <div>
-                <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">${inv.isReturn ? 'Reversal Date:' : (inv.isOrder ? 'Order Date:' : 'Invoice Date:')}</div>
-                <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${inv.date}</div>
-              </div>
-              <div>
-                <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Due Date:</div>
-                <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${inv.dueDate || inv.date}</div>
-              </div>
-              ${!inv.isOrder ? `
-              <div>
-                <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Order Number:</div>
-                <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${ohEsc(inv.orderNo) || '&mdash;'}</div>
-              </div>
-              ` : ''}
-              <div>
-                <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Payment Terms:</div>
-                <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">Due on Receipt</div>
-              </div>
-              <div>
-                <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Supply Type:</div>
-                <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${ohEsc(inv.salesSupplyType || 'Intra-State (CGST + SGST)')}</div>
-              </div>
-              ${execName ? `
-              <div>
-                <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Sales Executive:</div>
-                <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${ohEsc(execName)}</div>
-              </div>
-              ` : ''}
+            <div style="text-align:right;min-width:220px;">
+              <div style="font-size:20px;font-weight:900;text-transform:uppercase;color:${accentColor};letter-spacing:-.3px;">${docTitle}</div>
+              <table style="margin-top:10px;margin-left:auto;border-collapse:collapse;font-size:11.5px;border:1px solid #e2e8f0;">
+                <tr><td style="padding:4px 10px;background:#f1f5f9;font-weight:600;border:1px solid #e2e8f0;">${isReturn ? 'Credit Note No.' : isOrder ? 'Order No.' : 'Invoice No.'}</td><td style="padding:4px 10px;font-weight:700;border:1px solid #e2e8f0;">${ohEsc(inv.invoiceNo)}</td></tr>
+                <tr><td style="padding:4px 10px;background:#f1f5f9;font-weight:600;border:1px solid #e2e8f0;">Date</td><td style="padding:4px 10px;border:1px solid #e2e8f0;">${inv.date || '&mdash;'}</td></tr>
+                ${!isOrder ? `<tr><td style="padding:4px 10px;background:#f1f5f9;font-weight:600;border:1px solid #e2e8f0;">Due Date</td><td style="padding:4px 10px;border:1px solid #e2e8f0;">${inv.dueDate || inv.date || '&mdash;'}</td></tr>` : ''}
+                ${inv.orderNo ? `<tr><td style="padding:4px 10px;background:#f1f5f9;font-weight:600;border:1px solid #e2e8f0;">Order No.</td><td style="padding:4px 10px;border:1px solid #e2e8f0;">${ohEsc(inv.orderNo)}</td></tr>` : ''}
+                ${isReturn && inv.returnAgainstInvoice ? `<tr><td style="padding:4px 10px;background:#f1f5f9;font-weight:600;border:1px solid #e2e8f0;">Against Invoice</td><td style="padding:4px 10px;border:1px solid #e2e8f0;">${ohEsc(inv.returnAgainstInvoice)}</td></tr>` : ''}
+                ${execName ? `<tr><td style="padding:4px 10px;background:#f1f5f9;font-weight:600;border:1px solid #e2e8f0;">Sales Exec.</td><td style="padding:4px 10px;border:1px solid #e2e8f0;">${ohEsc(execName)}</td></tr>` : ''}
+              </table>
             </div>
           </div>
-          
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13.5px;">
+          <!-- SELLER / BUYER -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin-bottom:16px;background:#fafbfc;">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:6px;">Sold By / Billed From</div>
+              <div style="font-weight:800;font-size:13px;color:#0f172a;">${ohEsc(coName)}</div>
+              ${coAddr  ? `<div style="font-size:11px;color:#475569;white-space:pre-line;">${ohEsc(coAddr)}</div>` : ''}
+              ${coGSTIN ? `<div style="font-size:11px;font-weight:600;color:#334155;margin-top:3px;">GSTIN: ${ohEsc(coGSTIN)}</div>` : ''}
+            </div>
+            <div style="border-left:1px solid #e2e8f0;padding-left:20px;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:6px;">${isReturn ? 'Credit Issued To' : isOrder ? 'Order For' : 'Bill To / Ship To'}</div>
+              <div style="font-weight:800;font-size:13px;color:#0f172a;">${ohEsc(customer.name)}</div>
+              ${customer.address ? `<div style="font-size:11px;color:#475569;">${ohEsc(customer.address)}</div>` : ''}
+              ${customer.gstin   ? `<div style="font-size:11px;font-weight:600;color:#334155;margin-top:3px;">GSTIN: ${ohEsc(customer.gstin)}</div>` : ''}
+              <div style="font-size:11px;color:#475569;margin-top:3px;">Supply Type: <strong>${ohEsc(supplyType)}</strong></div>
+            </div>
+          </div>
+          <!-- ITEMS TABLE -->
+          <table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:0;border:1px solid #cbd5e1;">
             <thead>
-              <tr style="border-bottom: 2px solid var(--slate-200); background: var(--slate-50);">
-                <th style="padding: 10px; text-align: left; font-weight: 700; color: var(--slate-500); width: 40px;">#</th>
-                <th style="padding: 10px; text-align: left; font-weight: 700; color: var(--slate-500);">Description</th>
-                <th style="padding: 10px; text-align: right; font-weight: 700; color: var(--slate-500); width: 60px;">Qty</th>
-                <th style="padding: 10px; text-align: right; font-weight: 700; color: var(--slate-500); width: 110px;">Rate</th>
-                <th style="padding: 10px; text-align: right; font-weight: 700; color: var(--slate-500); width: 90px;">Discount</th>
-                <th style="padding: 10px; text-align: right; font-weight: 700; color: var(--slate-500); width: 80px;">Tax</th>
-                <th style="padding: 10px; text-align: right; font-weight: 700; color: var(--slate-500); width: 140px;">Amount</th>
+              <tr style="background:${accentColor};color:#fff;">
+                <th style="padding:8px;text-align:center;width:28px;">#</th>
+                <th style="padding:8px;text-align:left;">Description of ${inv.type === 'Product' ? 'Goods' : 'Services'}</th>
+                <th style="padding:8px;text-align:center;width:70px;">${inv.type === 'Product' ? 'HSN' : 'SAC'}</th>
+                <th style="padding:8px;text-align:right;width:50px;">Qty</th>
+                <th style="padding:8px;text-align:right;width:80px;">Rate</th>
+                <th style="padding:8px;text-align:right;width:80px;">Taxable</th>
+                ${taxHeaderCols}
+                <th style="padding:8px;text-align:right;width:90px;">Total</th>
               </tr>
             </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
+            <tbody>${rowsHtml}</tbody>
+            <tfoot>
+              <tr style="background:#f8fafc;font-weight:700;border-top:1.5px solid #cbd5e1;">
+                <td colspan="${colSpanTotal}" style="padding:8px;text-align:right;font-size:12.5px;">Total</td>
+                <td style="padding:8px;text-align:right;font-size:13px;font-weight:800;">&#8377; ${fmtNum(inv.total)}</td>
+              </tr>
+            </tfoot>
           </table>
-          
-          <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; margin-top: 30px;">
-            <div>
-              <h4 style="font-size: 11px; text-transform: uppercase; color: var(--slate-400); letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 700;">Terms & Notes:</h4>
-              <div style="font-size: 12.5px; color: var(--slate-600); line-height: 1.5; white-space: pre-wrap; font-weight: 500;">${ohEsc(inv.notes) || (inv.isReturn ? 'Sales Reversal / Credit Note processed.' : (inv.isOrder ? 'Sales Order placed.' : 'Thank you for your business! Please settle this invoice by the due date.'))}</div>
+          <!-- AMOUNT IN WORDS -->
+          <div style="border:1px solid #cbd5e1;border-top:none;padding:8px 12px;background:#fffbeb;">
+            <span style="font-size:10.5px;font-weight:700;text-transform:uppercase;color:#64748b;margin-right:6px;">Amount Chargeable (in words):</span>
+            <span style="font-size:12px;font-weight:700;color:#1e293b;">${totalWords}</span>
+          </div>
+          <!-- BOTTOM SECTION -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px;">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              ${bankHtml}
+              <div>
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:5px;">Terms &amp; Notes</div>
+                <div style="font-size:11.5px;color:#475569;line-height:1.6;white-space:pre-wrap;">${ohEsc(notesText)}</div>
+              </div>
             </div>
-            
             <div>
-              <div style="background: var(--slate-50); border-radius: 16px; padding: 18px 22px;">
-                <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-600); margin-bottom: 8px; font-weight: 500;">
-                  <span>Sub Total</span>
-                  <span>₹ ${fmtNum(inv.subTotal)}</span>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #e2e8f0;overflow:hidden;">
+                <thead><tr style="background:#f1f5f9;"><th colspan="2" style="padding:7px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;font-weight:700;">Summary</th></tr></thead>
+                <tbody>${paymentSummaryHtml}</tbody>
+              </table>
+              <div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-top:14px;background:#fafbfc;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">Declaration</div>
+                <div style="font-size:10.5px;color:#64748b;line-height:1.5;">We declare that this ${docTitle} shows the actual price of the goods / services described and that all particulars are true and correct.</div>
+                <div style="margin-top:16px;text-align:right;">
+                  <div style="font-size:11px;font-weight:700;color:#334155;">For ${ohEsc(coName)}</div>
+                  <div style="height:32px;"></div>
+                  <div style="font-size:10.5px;color:#64748b;border-top:1px solid #cbd5e1;display:inline-block;padding-top:4px;min-width:140px;">Authorised Signatory</div>
                 </div>
-                
-                ${taxDetailsHtml}
-                
-                ${inv.tdsTcsMode !== 'None' ? `
-                  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-600); margin-top: 8px; border-top: 1px dashed var(--slate-200); padding-top: 8px; font-weight: 500;">
-                    <span>${inv.tdsTcsMode} (${(inv.tdsTcsRate % 1 === 0 ? inv.tdsTcsRate.toFixed(0) : (inv.tdsTcsRate * 10 % 1 === 0 ? inv.tdsTcsRate.toFixed(1) : inv.tdsTcsRate.toFixed(2)))}%)</span>
-                    <span>${inv.tdsTcsMode === 'TDS' ? '-' : '+'} ₹ ${fmtNum(inv.tdsTcsAmount)}</span>
-                  </div>
-                ` : ''}
-                
-                ${inv.adjustments !== 0 ? `
-                  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-600); margin-top: 8px; border-top: 1px dashed var(--slate-200); padding-top: 8px; font-weight: 500;">
-                    <span>Adjustments</span>
-                    <span>₹ ${fmtNum(inv.adjustments)}</span>
-                  </div>
-                ` : ''}
-                
-                <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; color: var(--slate-900); margin-top: 12px; border-top: 2px solid var(--slate-200); padding-top: 12px;">
-                  <span>Grand Total</span>
-                  <span>₹ ${fmtNum(inv.total)}</span>
-                </div>
-                
-                ${inv.excessAmount > 0 ? `
-                  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-600); margin-top: 8px; border-top: 1px dashed var(--slate-200); padding-top: 8px; font-weight: 500;">
-                    <span>Order Advance Applied</span>
-                    <span style="color: var(--emerald-700); font-weight: 700;">₹ ${fmtNum(orderAdvanceAmount)}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-600); margin-top: 6px; font-weight: 500;">
-                    <span>Refund Status</span>
-                    <span style="font-weight: 700; color: var(--slate-700);">${inv.paymentStatus}</span>
-                  </div>
-                  ${inv.refundedAmount > 0 ? `
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-600); margin-top: 6px; font-weight: 500;">
-                      <span>Amount Refunded</span>
-                      <span style="color: #10b981; font-weight: 700;">₹ ${fmtNum(inv.refundedAmount)}</span>
-                    </div>
-                  ` : ''}
-                  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-900); margin-top: 6px; font-weight: 700;">
-                    <span>Refund Payable</span>
-                    <span style="color: ${inv.excessAmount - (inv.refundedAmount || 0) > 0 ? '#ef4444' : 'var(--slate-600)'};">₹ ${fmtNum(inv.excessAmount - (inv.refundedAmount || 0))}</span>
-                  </div>
-                ` : `
-                  ${orderAdvanceAmount > 0 ? `
-                    <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-600); margin-top: 8px; border-top: 1px dashed var(--slate-200); padding-top: 8px; font-weight: 500;">
-                      <span>Order Advance Applied</span>
-                      <span style="color: var(--emerald-700); font-weight: 700;">₹ ${fmtNum(orderAdvanceAmount)}</span>
-                    </div>
-                  ` : ''}
-                  ${inv.paymentStatus && inv.paymentStatus !== 'Not Paid' && inv.paymentStatus !== 'No Refund' ? `
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--slate-600); margin-top: 6px; font-weight: 500;">
-                      <span>Paid Amount (${inv.paymentStatus})</span>
-                      <span style="color: #10b981; font-weight: 700;">₹ ${fmtNum(inv.paymentAmount)}</span>
-                    </div>
-                  ` : ''}
-                  <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-900); margin-top: 8px; border-top: 1px dashed var(--slate-200); padding-top: 8px; font-weight: 700;">
-                    <span>Balance Due</span>
-                    <span style="color: ${inv.total - orderAdvanceAmount - (inv.paymentAmount || 0) > 0 ? '#ef4444' : 'var(--slate-600)'};">₹ ${fmtNum(Math.max(0, inv.total - orderAdvanceAmount - (inv.paymentAmount || 0)))}</span>
-                  </div>
-                `}
               </div>
             </div>
           </div>
-          
-          <div style="margin-top: 60px; border-top: 1px solid var(--slate-100); padding-top: 20px; text-align: center; font-size: 11.5px; color: var(--slate-400); font-weight: 500;">
-            This is a system generated document. No signature required.
-          </div>
+          <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:10px;text-align:center;font-size:10.5px;color:#94a3b8;">This is a Computer Generated ${docTitle}. No physical signature required.</div>
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(overlay);
     overlay.focus();
-    
     overlay.querySelector('#btnCloseInvoiceAction').addEventListener('click', () => overlay.remove());
-    overlay.querySelector('#btnPrintInvoiceAction').addEventListener('click', () => {
-      window.print();
-    });
-    
+    overlay.querySelector('#btnPrintInvoiceAction').addEventListener('click', () => window.print());
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     overlay.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.remove(); });
   }

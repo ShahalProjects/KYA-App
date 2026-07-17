@@ -1,4 +1,4 @@
-﻿  function fmtNum(n) {
+  function fmtNum(n) {
     if (!n || isNaN(n)) return '0.00';
     return Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
   }
@@ -1979,7 +1979,6 @@
                 <th>Particulars / Narration</th>
                 <th style="text-align: right;">Amount</th>
                 <th style="text-align: center;">Status</th>
-                
               </tr>
             </thead>
             <tbody>
@@ -2017,7 +2016,6 @@
                     <td style="font-weight:500; color:var(--slate-800); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ohEsc(e.particulars)}</td>
                     <td style="text-align:right; font-weight:700; color:${amtColor}; white-space:nowrap;">₹&thinsp;${e.amount}</td>
                     <td style="text-align:center;">${statusBadge}</td>
-
                   </tr>
                 `;
               }).join('')}
