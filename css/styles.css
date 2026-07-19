@@ -513,7 +513,10 @@
       transform: translateX(0);
     }
 
-    .nav-item.active .nav-icon { color: var(--white); }
+    .nav-item.active .nav-icon,
+    .nav-item.active:hover .nav-icon {
+      color: var(--white);
+    }
 
     .nav-icon {
       width: 20px;

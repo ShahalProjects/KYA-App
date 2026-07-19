@@ -357,6 +357,7 @@
 
     const tabMap = {
       settingsTabVault: 'vault',
+      settingsTabShortcuts: 'shortcuts',
     };
     Object.entries(tabMap).forEach(([btnId, tab]) => {
       const btn = document.getElementById(btnId);
@@ -372,9 +373,11 @@
 
     const allTabs = [
       ['settingsTabVault', 'vault'],
+      ['settingsTabShortcuts', 'shortcuts'],
     ];
     const allViews = [
       ['settings-vault-view', 'vault'],
+      ['settings-shortcuts-view', 'shortcuts'],
       ['settings-empty-view', ''],
     ];
 

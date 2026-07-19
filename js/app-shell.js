@@ -620,6 +620,23 @@
       el.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
           handler(e);
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const items = Array.from(navItems);
+          const currentIndex = items.indexOf(el);
+          if (currentIndex !== -1) {
+            let nextIndex;
+            if (e.key === 'ArrowDown') {
+              nextIndex = (currentIndex + 1) % items.length;
+            } else {
+              nextIndex = (currentIndex - 1 + items.length) % items.length;
+            }
+            const nextEl = items[nextIndex];
+            if (nextEl) {
+              nextEl.focus();
+              nextEl.click();
+            }
+          }
         }
       });
     }
@@ -716,6 +733,253 @@
       openTab(nextTabId);
     }
   }, true);
+
+  // --- Keyboard Shortcuts (Space + Key) ---
+  let isSpacePressed = false;
+  window.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
+      const activeEl = document.activeElement;
+      if (activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.isContentEditable ||
+        activeEl.tagName === 'SELECT'
+      )) {
+        return;
+      }
+      isSpacePressed = true;
+    }
+  }, true);
+
+  window.addEventListener('keyup', e => {
+    if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
+      isSpacePressed = false;
+    }
+  }, true);
+
+  window.addEventListener('blur', () => {
+    isSpacePressed = false;
+  });
+
+  window.addEventListener('keydown', e => {
+    if (isSpacePressed) {
+      const activeEl = document.activeElement;
+      if (activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.isContentEditable ||
+        activeEl.tagName === 'SELECT'
+      )) {
+        return;
+      }
+
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        e.preventDefault();
+        e.stopPropagation();
+        openTabs = [];
+        activeTabId = null;
+        renderTabs();
+        switchToActivePanel();
+        window.location.hash = '#dashboard';
+        showToast('All tabs closed.', 'success');
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      const shortcutMap = {
+        's': 'sales_voucher',
+        'j': 'journal',
+        'v': 'voucher_desk',
+        'c': 'chart',
+        't': 'trial',
+        'p': 'pnl',
+        'b': 'balance',
+        'k': 'onehub',
+        'd': 'dashboard',
+        'e': 'settings',
+        'u': 'vault'
+      };
+
+      if (shortcutMap[key]) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const route = shortcutMap[key];
+        if (route === 'vault') {
+          if (typeof _settingsActiveTab !== 'undefined') {
+            _settingsActiveTab = 'vault';
+          } else {
+            window._settingsActiveTab = 'vault';
+          }
+          navigateTo('settings');
+        } else {
+          navigateTo(route);
+        }
+      }
+    }
+  }, true);
+
+  // --- Help Button Overlay ---
+  function showHelpModal() {
+    const existing = document.getElementById('kyaHelpOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'kyaHelpOverlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const card = document.createElement('div');
+    card.id = 'kyaHelpCard';
+    card.style.cssText = `
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      width: 480px;
+      max-width: 90%;
+      padding: 28px;
+      position: relative;
+      animation: kyaHelpPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    `;
+
+    if (!document.getElementById('kyaHelpAnimStyles')) {
+      const styles = document.createElement('style');
+      styles.id = 'kyaHelpAnimStyles';
+      styles.textContent = `
+        @keyframes kyaHelpPopIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(styles);
+    }
+
+    card.innerHTML = `
+      <button id="kyaHelpCloseBtn" style="
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 24px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 4px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s, background-color 0.15s;
+      " aria-label="Close help modal">×</button>
+      
+      <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <svg viewBox="0 0 20 20" fill="none" width="20" height="20" style="color: #2563eb;">
+          <circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M9 9.5a1.5 1.5 0 112 1.3c-.4.3-1 .8-1 1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="10" cy="15" r="0.75" fill="currentColor"/>
+        </svg>
+        Keyboard Shortcuts Help
+      </h3>
+      <p style="margin: 0 0 20px 0; font-size: 13.5px; color: #64748b; line-height: 1.5;">
+        You can navigate instantly to any module by holding the <strong style="color: #0f172a;">Spacebar</strong> and pressing the corresponding key below:
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Dashboard</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + D</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Sales Voucher</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + S</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Journal Entry</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + J</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Voucher Desk</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + V</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Chart of Acc.</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + C</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Trial Balance</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + T</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Profit & Loss</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + P</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Balance Sheet</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + B</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">KeepOne</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + K</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Settings</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + E</kbd>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+          <span style="font-size: 13px; color: #475569; font-weight: 500;">Vault Backups</span>
+          <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: #0f172a;">Space + U</kbd>
+        </div>
+      </div>
+
+      <div style="background: #eff6ff; border-radius: 8px; padding: 12px; font-size: 12.5px; color: #1e3a8a; line-height: 1.5; border: 1px dashed #bfdbfe;">
+        <strong>Other Keyboard Shortcuts:</strong><br/>
+        • <strong>ArrowUp / ArrowDown</strong>: Navigate focused sidebar item<br/>
+        • <strong>Space + Esc</strong>: Close all opened tabs instantly<br/>
+        • <strong>Ctrl + Space</strong>: Switch to next open tab
+      </div>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    const closeBtn = card.querySelector('#kyaHelpCloseBtn');
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#475569'; closeBtn.style.backgroundColor = '#f1f5f9'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = '#94a3b8'; closeBtn.style.backgroundColor = 'transparent'; });
+    
+    const closeHelp = () => overlay.remove();
+    closeBtn.addEventListener('click', closeHelp);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeHelp(); });
+    
+    const handleKey = e => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault();
+        window.removeEventListener('keydown', handleKey);
+        closeHelp();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+  }
+
+  // Wire up help button
+  const btnHelp = document.querySelector('[aria-label="Help"]');
+  if (btnHelp) {
+    btnHelp.addEventListener('click', e => {
+      e.preventDefault();
+      showHelpModal();
+    });
+  }
 
 
   /* ======================

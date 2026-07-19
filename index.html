@@ -1130,6 +1130,23 @@
               </div>
               <span class="oh-tab-text">Vault</span>
             </button>
+            
+            <!-- Keyboard Shortcuts Option -->
+            <button class="oh-sub-tab" id="settingsTabShortcuts" role="tab" aria-selected="false" aria-controls="settings-shortcuts-view">
+              <div class="oh-tab-icon-wrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+                  <line x1="6" y1="8" x2="6.01" y2="8"/>
+                  <line x1="10" y1="8" x2="10.01" y2="8"/>
+                  <line x1="14" y1="8" x2="14.01" y2="8"/>
+                  <line x1="18" y1="8" x2="18.01" y2="8"/>
+                  <line x1="6" y1="12" x2="6.01" y2="12"/>
+                  <line x1="18" y1="12" x2="18.01" y2="12"/>
+                  <line x1="10" y1="12" x2="14" y2="12"/>
+                </svg>
+              </div>
+              <span class="oh-tab-text">Keyboard Shortcuts</span>
+            </button>
           </div>
 
           <!-- Right Content Views -->
@@ -1144,7 +1161,83 @@
                   </svg>
                 </div>
                 <div class="oh-empty-title">Settings</div>
-                <div class="oh-empty-subtitle">Select an option from the left menu to configure preferences and vault backups.</div>
+                <div class="oh-empty-subtitle">Select an option from the left menu to configure preferences, vault backups, and shortcuts.</div>
+              </div>
+            </div>
+
+            <!-- Keyboard Shortcuts View -->
+            <div id="settings-shortcuts-view" role="tabpanel" style="display:none">
+              <div class="vault-container">
+                <h3 class="vault-sec-title">Keyboard Shortcuts Reference</h3>
+                <div class="vault-card" style="width: 100%; box-sizing: border-box; padding: 24px;">
+                  <p style="font-size: 14px; color: var(--slate-500); line-height: 1.6; margin: 0 0 20px 0;">
+                    KYA supports instant keyboard navigation. Hold the <strong style="color: var(--slate-800);">Spacebar</strong> and tap the corresponding key to switch modules:
+                  </p>
+
+                  <div style="background: var(--white); border: 1.5px solid var(--slate-200); border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px;">
+                      <thead>
+                        <tr style="background: var(--slate-50); border-bottom: 1.5px solid var(--slate-200);">
+                          <th style="padding: 12px 16px; font-weight: 600; color: var(--slate-700);">Navigation Module</th>
+                          <th style="padding: 12px 16px; font-weight: 600; color: var(--slate-700); text-align: right;">Shortcut Key</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Dashboard</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + D</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Sales Voucher</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + S</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Journal Entry</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + J</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Voucher Desk</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + V</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Chart of Accounts</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + C</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Trial Balance</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + T</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Profit &amp; Loss</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + P</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Balance Sheet</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + B</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">KeepOne Hub</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + K</kbd></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--slate-100);">
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Settings</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + E</kbd></td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 10px 16px; color: var(--slate-600); font-weight: 500;">Vault Backups</td>
+                          <td style="padding: 10px 16px; text-align: right;"><kbd style="background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--slate-800);">Space + U</kbd></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div style="background: var(--blue-50); border: 1px dashed var(--blue-200); border-radius: 8px; padding: 14px; font-size: 13px; color: var(--blue-800); line-height: 1.55;">
+                    <strong>Utility & Navigation Helpers:</strong><br/>
+                    • <strong>ArrowUp / ArrowDown</strong>: Navigate focused sidebar items sequentially.<br/>
+                    • <strong>Space + Esc</strong>: Close all currently opened tabs completely.<br/>
+                    • <strong>Ctrl + Space</strong>: Cycle to the next open panel tab at the top.
+                  </div>
+                </div>
               </div>
             </div>
 

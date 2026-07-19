@@ -2,8 +2,30 @@
     if (!n || isNaN(n)) return '0.00';
     return Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
   }
+  function evaluateMathExpression(str) {
+    let clean = (str || '').toString().replace(/,/g, '').trim();
+    if (!clean) return 0;
+    clean = clean.replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+    if (!/^[0-9.+\-*/()\s]+$/.test(clean)) {
+      return NaN;
+    }
+    try {
+      const result = Function(`"use strict"; return (${clean})`)();
+      return typeof result === 'number' && isFinite(result) ? result : NaN;
+    } catch (e) {
+      return NaN;
+    }
+  }
+
   function parseAmt(str) {
-    const v = parseFloat((str || '').toString().replace(/,/g,''));
+    const cleanStr = (str || '').toString().replace(/,/g, '').trim();
+    if (/[\+\-\*\/\%]/.test(cleanStr)) {
+      const evalVal = evaluateMathExpression(cleanStr);
+      if (!isNaN(evalVal)) {
+        return evalVal;
+      }
+    }
+    const v = parseFloat(cleanStr);
     return isNaN(v) ? 0 : v;
   }
   function genVoucherNo() {
@@ -249,7 +271,7 @@
 
       // ── Keyboard shortcuts on Amount field
       inpAmt.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === 'Enter' || (e.key === ' ' && !/[\+\-\*\/\(]\s*$/.test(inpAmt.value))) {
           e.preventDefault();
 
           // Commit current amount first
