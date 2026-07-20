@@ -1,4 +1,4 @@
-﻿  // ══════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════
   //  SALES PRINT & EVENTS — Print invoice, due-date helper, event wiring
   //  (Split from sales.js for maintainability)
   // ══════════════════════════════════════════════════════════════════
@@ -198,7 +198,7 @@
                 <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Due Date:</div>
                 <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${inv.dueDate || inv.date}</div>
               </div>
-              ${!inv.isOrder && !inv.isReturn ? `
+              ${!inv.isOrder ? `
               <div>
                 <div style="color: var(--slate-400); font-weight: 600; font-size: 11px; text-transform: uppercase;">Order Number:</div>
                 <div style="font-weight: 700; color: var(--slate-800); margin-top: 2px;">${ohEsc(inv.orderNo) || '&mdash;'}</div>

@@ -119,6 +119,17 @@
         <span class="nav-label">Chart of Accounts</span>
       </div>
 
+      <div class="nav-item" id="nav-cashline" role="button" tabindex="0" aria-label="Cashline">
+        <!-- Bank card/piggy SVG -->
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none">
+          <rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+          <line x1="2" y1="9" x2="18" y2="9" stroke="currentColor" stroke-width="1.6"/>
+          <rect x="5" y="12" width="4" height="2.5" rx="0.5" fill="currentColor"/>
+          <circle cx="14" cy="12.5" r="1" fill="currentColor"/>
+        </svg>
+        <span class="nav-label">Cashline</span>
+      </div>
+
 
 
       <div class="nav-section-label">Reports</div>
@@ -1683,6 +1694,9 @@
         <div id="salesDraftedTableWrap"></div>
       </div>
 
+      <!-- Cashline Panel -->
+      <div id="panel-cashline" role="region" aria-label="Cashline" style="display:none"></div>
+
       <!-- Company Details Panel -->
       <div id="panel-company" role="region" aria-label="Company Details" style="display:none"></div>
 
@@ -1701,6 +1715,7 @@
 <script src="js/vault-settings.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/company-profile.js"></script>
+<script src="js/cashline.js"></script>
 
 </body>
 </html>

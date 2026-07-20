@@ -276,6 +276,7 @@
     settings: panelSettings,
     sales_voucher: document.getElementById('panel-sales-voucher'),
     company: document.getElementById('panel-company'),
+    cashline: document.getElementById('panel-cashline'),
   };
 
   const TAB_DEFS = {
@@ -349,6 +350,13 @@
       navId: 'sidebarCompanyCard',
       icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><rect x="2" y="7" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 7V5a4 4 0 018 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`
     },
+    cashline: {
+      id: 'cashline',
+      label: 'Cashline',
+      panelId: 'panel-cashline',
+      navId: 'nav-cashline',
+      icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><rect x="2" y="5" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="11" r="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M2 9h16" stroke="currentColor" stroke-width="1.6"/></svg>`
+    },
   };
 
   let openTabs = [];
@@ -367,6 +375,7 @@
     settings:  { tabId: 'settings' },
     sales_voucher: { tabId: 'sales_voucher' },
     company:   { tabId: 'company' },
+    cashline:  { tabId: 'cashline' },
   };
 
   const NAV_ID_TO_ROUTE = {
@@ -380,6 +389,7 @@
     'nav-settings': 'settings',
     'nav-journal': 'journal',
     'nav-sales': 'sales_voucher',
+    'nav-cashline': 'cashline',
   };
 
   let currentActiveRoute = null;
@@ -500,6 +510,7 @@
       if (activeTabId === 'settings') renderSettingsPanel();
       if (activeTabId === 'sales_voucher') initSalesForm();
       if (activeTabId === 'company') renderCompanyPanel();
+      if (activeTabId === 'cashline') renderCashlinePanel();
 
       // Highlight sidebar nav item
       const navEl = document.getElementById(def.navId);

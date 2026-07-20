@@ -641,13 +641,13 @@
       if (cardTitle) cardTitle.textContent = 'Sales Reversal';
       if (cardSubtitle) cardSubtitle.textContent = 'Record sales reversals and customer credits';
       if (invoiceNoContainer) invoiceNoContainer.style.display = 'block';
-      if (invoiceNoLabel) invoiceNoLabel.textContent = 'Doc No.';
+      if (invoiceNoLabel) invoiceNoLabel.textContent = 'Original Doc';
       if (invoiceNoInput) invoiceNoInput.style.display = 'none';
       if (selectWrap) {
         selectWrap.style.display = 'block';
         refreshSalesInvoiceDropdownOptions();
       }
-      if (orderNoContainer) orderNoContainer.style.display = 'none';
+      if (orderNoContainer) orderNoContainer.style.display = 'block';
       if (postSalesBtn) {
         postSalesBtn.innerHTML = `<svg viewBox="0 0 15 15" fill="none" style="width:14px; height:14px; margin-right:6px; display:inline-block; vertical-align:middle;"><path d="M2.5 8l4 4 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Post Reversal`;
       }
