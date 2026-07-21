@@ -86,114 +86,122 @@
         margin-bottom: 24px;
       }
       .cl-account-card {
-        border: 1.5px solid var(--slate-200);
-        border-radius: 16px;
-        padding: 20px;
-        background: var(--white);
-        transition: all 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 24px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
       }
       .cl-account-card:hover {
-        border-color: var(--blue-400);
-        box-shadow: var(--shadow-md);
-        transform: translateY(-2px);
+        border-color: rgba(59, 130, 246, 0.4);
+        box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.4), 0 12px 16px -8px rgba(0, 0, 0, 0.4);
+        transform: translateY(-4px);
       }
-      .cl-account-card::before {
+      .cl-account-card::after {
         content: '';
         position: absolute;
-        top: 0; left: 0; right: 0; height: 4px;
-        background: linear-gradient(90deg, var(--blue-500), var(--emerald-500));
+        top: -60px;
+        right: -60px;
+        width: 160px;
+        height: 160px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+        pointer-events: none;
       }
       .cl-account-header {
         display: flex;
         justify-content: space-between;
         align-items: start;
-        margin-bottom: 14px;
+        margin-bottom: 8px;
       }
       .cl-account-name {
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--slate-800);
+        font-size: 16px;
+        font-weight: 800;
+        color: #ffffff;
         margin: 0;
+        letter-spacing: -0.2px;
       }
       .cl-account-bank {
-        font-size: 12px;
-        color: var(--slate-400);
+        font-size: 12.5px;
+        color: #94a3b8;
         font-weight: 500;
         margin-top: 2px;
       }
       .cl-account-badge {
-        font-size: 10px;
-        font-weight: 700;
+        font-size: 9px;
+        font-weight: 800;
         padding: 3px 8px;
-        border-radius: 20px;
+        border-radius: 12px;
         text-transform: uppercase;
-        background: var(--slate-100);
-        color: var(--slate-600);
+        background: rgba(255, 255, 255, 0.08);
+        color: #cbd5e1;
+        border: 1px solid rgba(255, 255, 255, 0.05);
       }
       .cl-account-details {
-        font-size: 12.5px;
-        color: var(--slate-600);
-        margin-bottom: 16px;
+        font-size: 13px;
+        color: #cbd5e1;
+        margin-bottom: 20px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
       }
       .cl-account-bal-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding-top: 10px;
-        border-top: 1px dashed var(--slate-200);
+        padding-top: 12px;
+        border-top: 1px dashed rgba(255, 255, 255, 0.1);
       }
       .cl-account-bal-label {
         font-size: 11px;
         font-weight: 700;
-        color: var(--slate-400);
+        color: #64748b;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.06em;
       }
       .cl-account-bal-val {
-        font-size: 15px;
+        font-size: 15.5px;
         font-weight: 800;
-        color: var(--slate-800);
+        color: #f8fafc;
       }
       .cl-account-bal-val.reconciled {
-        color: var(--emerald-600);
+        color: #34d399;
       }
       .cl-card-actions {
         display: flex;
         gap: 8px;
-        margin-top: 14px;
+        margin-top: 18px;
       }
       .cl-card-btn {
         flex: 1;
-        padding: 7px 10px;
+        padding: 8px 12px;
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 700;
         border-radius: 8px;
-        border: 1px solid var(--slate-200);
-        background: var(--white);
-        color: var(--slate-700);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #cbd5e1;
         cursor: pointer;
         transition: all 0.15s ease;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 6px;
       }
       .cl-card-btn:hover {
-        background: var(--slate-50);
-        border-color: var(--slate-300);
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
       }
       .cl-card-btn.primary {
-        background: var(--blue-600);
-        color: var(--white);
+        background: #2563eb;
+        color: #ffffff;
         border: none;
       }
       .cl-card-btn.primary:hover {
-        background: var(--blue-700);
+        background: #1d4ed8;
       }
 
       /* Form inputs styling */
@@ -337,6 +345,9 @@
         color: #d97706;
         border-color: #fde68a;
       }
+      .cl-list-row:hover {
+        background: var(--slate-50) !important;
+      }
     `;
     document.head.appendChild(s);
   }
@@ -352,6 +363,12 @@
   let _clReconStmtBal = '';
   let _clReconFilter = 'unreconciled'; // 'all', 'reconciled', 'unreconciled'
 
+  // Statement sub-state
+  let _clStatementFromDate = '';
+  let _clStatementToDate = '';
+  let _clStatementSortOrder = 'oldest'; // 'oldest' (old to new) or 'newest' (new to old)
+  let _clStatementSearchQuery = '';
+
   // Cashbook sub-state
   let _clCashbookAccountId = '';
 
@@ -364,12 +381,47 @@
     window.KYA_STORE = window.KYA_STORE || {};
     window.KYA_STORE.bankAccounts = window.KYA_STORE.bankAccounts || [];
     window.KYA_STORE.reconciliationState = window.KYA_STORE.reconciliationState || {};
+    window.KYA_STORE.uploadedStatements = window.KYA_STORE.uploadedStatements || {};
+    window.KYA_STORE.statementMappings = window.KYA_STORE.statementMappings || {};
+  }
+
+  // ── Sync Bank Accounts with COA ────────────────────────────────────
+  function syncBankAccounts() {
+    initClStore();
+    const bankGroup = coaLedgers.find(l => l.name === 'Bank Account' && l.type === 'group-ledger');
+    const bankLedgers = bankGroup ? coaLedgers.filter(l => l.type === 'ledger' && l.glId === bankGroup.id) : [];
+
+    const existingAccounts = window.KYA_STORE.bankAccounts || [];
+    const updatedAccounts = [];
+
+    bankLedgers.forEach(l => {
+      let acc = existingAccounts.find(a => a.ledgerId === l.id);
+      if (!acc) {
+        acc = {
+          id: Date.now() + Math.random(),
+          ledgerId: l.id,
+          name: l.name,
+          bankName: 'Bank Account',
+          accountNumber: '—',
+          ifsc: '—',
+          branch: 'Branch',
+          openingBalance: parseFloat(l.openingBalance) || 0
+        };
+        existingAccounts.push(acc);
+      } else {
+        acc.name = l.name;
+        acc.openingBalance = parseFloat(l.openingBalance) || 0;
+      }
+      updatedAccounts.push(acc);
+    });
+
+    window.KYA_STORE.bankAccounts = updatedAccounts;
   }
 
   // ── Main Shell Hook: Called by app-shell.js ───────────────────────
   window.renderCashlinePanel = function() {
     injectCashlineStyles();
-    initClStore();
+    syncBankAccounts();
 
     const panel = document.getElementById('panel-cashline');
     if (!panel) return;
@@ -481,10 +533,38 @@
 
   // ── Banking Tab: KeepOne-style sidebar with Details/Statement/Reconciliation ──
   function renderBankingTab(mainArea, actionsArea) {
+    window.clSwitchBankingTabGlobal = (tab) => {
+      switchBankingTab(tab, actionsArea);
+    };
+
     mainArea.innerHTML = `
-      <div class="oh-layout">
+      <div class="oh-layout" id="clBankingLayoutContainer">
         <!-- Sidebar -->
-        <div class="oh-sub-tabs" role="tablist" aria-label="Banking sections">
+        <div class="oh-sub-tabs" id="clBankingSidebar" role="tablist" aria-label="Banking sections">
+        </div>
+
+        <!-- Content -->
+        <div class="oh-content-area" id="clBankingContentArea"></div>
+      </div>
+    `;
+
+    switchBankingTab(_clActiveBankingTab, actionsArea);
+  }
+
+  function switchBankingTab(tab, actionsArea) {
+    _clActiveBankingTab = tab;
+
+    const container = document.getElementById('clBankingLayoutContainer');
+    const sidebar = document.getElementById('clBankingSidebar');
+    if (container && sidebar) {
+      if (tab === 'statement') {
+        container.classList.add('full-width');
+        sidebar.style.display = 'none';
+      } else {
+        container.classList.remove('full-width');
+        sidebar.style.display = 'flex';
+
+        sidebar.innerHTML = `
           <button class="oh-sub-tab" id="clBankTabDetails" role="tab" aria-selected="false">
             <div class="oh-tab-icon-wrap">
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
@@ -515,41 +595,24 @@
             </div>
             <span class="oh-tab-text">Reconciliation</span>
           </button>
-        </div>
+        `;
 
-        <!-- Content -->
-        <div class="oh-content-area" id="clBankingContentArea"></div>
-      </div>
-    `;
-
-    // Wire banking sub-tabs
-    const bankTabMap = {
-      clBankTabDetails:        'details',
-      clBankTabStatement:      'statement',
-      clBankTabReconciliation: 'reconciliation',
-    };
-    Object.entries(bankTabMap).forEach(([btnId, tab]) => {
-      const btn = mainArea.querySelector('#' + btnId);
-      if (btn) btn.addEventListener('click', () => switchBankingTab(tab, actionsArea));
-    });
-
-    switchBankingTab(_clActiveBankingTab, actionsArea);
-  }
-
-  function switchBankingTab(tab, actionsArea) {
-    _clActiveBankingTab = tab;
-
-    const allTabs = [
-      ['clBankTabDetails',        'details'],
-      ['clBankTabStatement',      'statement'],
-      ['clBankTabReconciliation', 'reconciliation'],
-    ];
-    allTabs.forEach(([btnId, t]) => {
-      const btn = document.getElementById(btnId);
-      if (!btn) return;
-      btn.classList.toggle('active', t === tab);
-      btn.setAttribute('aria-selected', t === tab);
-    });
+        const allTabs = [
+          ['clBankTabDetails',        'details'],
+          ['clBankTabStatement',      'statement'],
+          ['clBankTabReconciliation', 'reconciliation'],
+        ];
+        allTabs.forEach(([btnId, t]) => {
+          const btn = document.getElementById(btnId);
+          if (!btn) return;
+          btn.classList.toggle('active', t === tab);
+          btn.setAttribute('aria-selected', t === tab);
+          btn.addEventListener('click', () => {
+            switchBankingTab(t, actionsArea);
+          });
+        });
+      }
+    }
 
     if (actionsArea) actionsArea.innerHTML = '';
     const bankArea = document.getElementById('clBankingContentArea');
@@ -558,7 +621,7 @@
     if (tab === 'details') {
       renderAccountsView(bankArea);
     } else if (tab === 'statement') {
-      renderCashbookView(bankArea, null, null);
+      renderCashbookView(bankArea, null, actionsArea);
     } else if (tab === 'reconciliation') {
       renderReconciliationView(bankArea, null, actionsArea);
     }
@@ -629,86 +692,610 @@
   //  1. BANK ACCOUNT MANAGEMENT VIEW
   // ===================================================================
   function renderAccountsView(target) {
+    syncBankAccounts();
     const accounts = window.KYA_STORE.bankAccounts || [];
 
-    let cardsHtml = '';
-    if (accounts.length === 0) {
-      cardsHtml = `
-        <div style="grid-column: 1 / -1; padding: 48px; text-align: center; border: 1.5px dashed var(--slate-200); border-radius: 16px; background: var(--slate-50);">
-          <div style="font-size: 14.5px; font-weight: 700; color: var(--slate-700);">No bank accounts added yet</div>
-          <div style="font-size: 12.5px; color: var(--slate-400); margin-top: 4px;">Add bank accounts and link them to your Chart of Accounts.</div>
+    let totalBookBal = 0;
+    let totalReconciledBal = 0;
+    const processedAccounts = accounts.map(acc => {
+      const ledger = coaLedgers.find(l => l.id === acc.ledgerId);
+      let bookBal = 0;
+      if (ledger) {
+        const balData = calculateLedgerBalances(ledger);
+        bookBal = balData.closingBalance;
+      }
+      const unreconciledSum = getUnreconciledSum(acc.ledgerId);
+      const reconciledBal = bookBal - unreconciledSum;
+
+      totalBookBal += bookBal;
+      totalReconciledBal += reconciledBal;
+
+      return {
+        ...acc,
+        bookBal,
+        reconciledBal
+      };
+    });
+
+    const statsHtml = `
+      <div class="cl-stats-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px;">
+        <div class="cl-stat-card" style="background: var(--white); border: 1.5px solid var(--slate-150); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm);">
+          <span style="font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em;">No. of Accounts</span>
+          <span style="font-size: 24px; font-weight: 800; color: var(--slate-800);">${accounts.length}</span>
         </div>
-      `;
-    } else {
-      accounts.forEach(acc => {
-        const ledger = coaLedgers.find(l => l.id === acc.ledgerId);
-        let bookBal = 0;
-        if (ledger) {
-          const balData = calculateLedgerBalances(ledger);
-          bookBal = balData.closingBalance;
-        }
-
-        // Calculate unreconciled balance to get reconciled bank balance
-        const unreconciledSum = getUnreconciledSum(acc.ledgerId);
-        const reconciledBal = bookBal - unreconciledSum; // Book Balance - Outstanding Check net = Reconciled Balance
-
-        cardsHtml += `
-          <div class="cl-account-card">
-            <div class="cl-account-header">
-              <div>
-                <h4 class="cl-account-name">${ohEsc(acc.name)}</h4>
-                <div class="cl-account-bank">${ohEsc(acc.bankName)}</div>
-              </div>
-              <span class="cl-account-badge">${ohEsc(acc.branch || 'Branch')}</span>
-            </div>
-            <div class="cl-account-details">
-              <div><strong>A/c No:</strong> ${ohEsc(acc.accountNumber || '—')}</div>
-              <div><strong>IFSC Code:</strong> ${ohEsc(acc.ifsc || '—')}</div>
-            </div>
-            
-            <div class="cl-account-bal-row" style="margin-bottom: 6px;">
-              <span class="cl-account-bal-label">Book Balance</span>
-              <span class="cl-account-bal-val">${fmtAmt(bookBal)}</span>
-            </div>
-            <div class="cl-account-bal-row">
-              <span class="cl-account-bal-label" style="color:var(--emerald-600)">Reconciled Bal</span>
-              <span class="cl-account-bal-val reconciled">${fmtAmt(reconciledBal)}</span>
-            </div>
-            
-            <div class="cl-card-actions">
-              <button class="cl-card-btn" onclick="window.clReconcileAccount(${acc.id})">
-                <svg viewBox="0 0 20 20" fill="none" width="14" height="14" style="color: var(--blue-600);">
-                  <path d="M10 3v14M3 10h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-                Reconcile
-              </button>
-              <button class="cl-card-btn" onclick="window.clEditAccount(${acc.id})" title="Edit account details">
-                Edit
-              </button>
-              <button class="cl-card-btn" style="color: var(--red-600); border-color: var(--red-100);" onclick="window.clDeleteAccount(${acc.id})" title="Delete account">
-                Delete
-              </button>
-            </div>
-          </div>
-        `;
-      });
-    }
-
-    target.innerHTML = `
-      <div class="cl-accounts-grid" style="margin-top: 10px;">
-        ${cardsHtml}
+        <div class="cl-stat-card" style="background: var(--white); border: 1.5px solid var(--slate-150); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm);">
+          <span style="font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em;">Bank Balance</span>
+          <span style="font-size: 24px; font-weight: 800; color: var(--slate-800);">${fmtAmt(totalBookBal)}</span>
+        </div>
+        <div class="cl-stat-card" style="background: var(--white); border: 1.5px solid var(--slate-150); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm);">
+          <span style="font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em;">Book Balance</span>
+          <span style="font-size: 24px; font-weight: 800; color: var(--emerald-600);">${fmtAmt(totalReconciledBal)}</span>
+        </div>
       </div>
     `;
 
+    let contentHtml = '';
+    if (processedAccounts.length === 0) {
+      contentHtml = `
+        <div style="padding: 48px; text-align: center; border: 1.5px dashed var(--slate-200); border-radius: 16px; background: var(--slate-50);">
+          <div style="font-size: 14.5px; font-weight: 700; color: var(--slate-700);">No bank accounts linked yet</div>
+          <div style="font-size: 12.5px; color: var(--slate-400); margin-top: 4px;">Link ledgers under the "Bank Account" group ledger inside Chart of Accounts to manage them here.</div>
+        </div>
+      `;
+    } else {
+      let rowsHtml = '';
+      processedAccounts.forEach(acc => {
+        rowsHtml += `
+          <tr class="cl-list-row" onclick="window.clShowAccountDetails(${acc.id})" style="transition: background 0.15s ease; border-bottom: 1px solid var(--slate-100); cursor: pointer;">
+            <td style="padding: 14px 16px; vertical-align: middle;">
+              <div style="font-size: 13.5px; font-weight: 600; color: var(--slate-800);">${ohEsc(acc.name)}</div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle;">
+              <div style="font-size: 13.5px; font-family: monospace; font-weight: 600; color: var(--slate-700);">${ohEsc(acc.accountNumber || '—')}</div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle;">
+              <div style="font-size: 13.5px; font-family: monospace; font-weight: 600; color: var(--slate-700);">${ohEsc(acc.ifsc || '—')}</div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right;">
+              <div style="font-size: 13.5px; font-weight: 600; color: var(--emerald-600); font-family: monospace;">${fmtAmt(acc.reconciledBal)}</div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right;">
+              <div style="font-size: 13.5px; font-weight: 600; color: var(--slate-700); font-family: monospace;">${fmtAmt(acc.bookBal)}</div>
+            </td>
+          </tr>
+        `;
+      });
+
+      contentHtml = `
+        <div style="border: 1.5px solid var(--slate-150); border-radius: 16px; overflow: hidden; background: var(--white); box-shadow: var(--shadow-sm);">
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+              <tr style="background: var(--slate-50); border-bottom: 1.5px solid var(--slate-200);">
+                <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em;">Bank</th>
+                <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em;">Account No</th>
+                <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em;">IFSC</th>
+                <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; text-align: right; width: 180px;">Bank Balance</th>
+                <th style="padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; text-align: right; width: 180px;">Book Balance</th>
+              </tr>
+            </thead>
+            <tbody style="background: var(--white);">
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    target.innerHTML = `
+      <div style="margin-top: 10px;">
+        ${statsHtml}
+        ${contentHtml}
+      </div>
+    `;
+  }
+
+  // ── Excel Library Loader ───────────────────────────────────────────
+  function loadXLSXLibrary(callback) {
+    if (window.XLSX) {
+      callback();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.onload = () => callback();
+    script.onerror = () => {
+      showToast('Failed to load Excel parsing library. Please check your internet connection.', 'error');
+    };
+    document.head.appendChild(script);
+  }
+
+  // ── CSV Parser with Quote-Handling ──────────────────────────────────
+  function parseCSV(text) {
+    const lines = text.split(/\r\n|\n/);
+    return lines.map(line => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    }).filter(row => row.length > 0 && row.some(cell => cell !== ''));
+  }
+
+  // ── Excel Parser ───────────────────────────────────────────────────
+  function parseExcel(arrayBuffer, callback) {
+    try {
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      callback(rows);
+    } catch (err) {
+      console.error(err);
+      showToast('Error parsing Excel file.', 'error');
+    }
+  }
+
+  // ── Date Normalization ─────────────────────────────────────────────
+  function parseStatementDate(dateStr) {
+    if (!dateStr) return '';
+    const clean = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+    
+    // DD-MM-YYYY or DD/MM/YYYY
+    let m = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (m) {
+      const d = m[1].padStart(2, '0');
+      const month = m[2].padStart(2, '0');
+      const y = m[3];
+      return `${y}-${month}-${d}`;
+    }
+
+    // DD-MM-YY or DD/MM/YY
+    m = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2})$/);
+    if (m) {
+      const d = m[1].padStart(2, '0');
+      const month = m[2].padStart(2, '0');
+      const y = '20' + m[3];
+      return `${y}-${month}-${d}`;
+    }
+
+    try {
+      const parsed = new Date(clean);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+      }
+    } catch(e) {}
+    
+    return clean;
+  }
+
+  // ── Upload Statement Wizard Flow ──────────────────────────────────
+  function showUploadStatementWizard() {
+    initClStore();
+    const accounts = window.KYA_STORE.bankAccounts || [];
+    if (accounts.length === 0) {
+      showToast('No bank accounts available to import statements for.', 'warning');
+      return;
+    }
+
+    // Render Step 1
+    document.getElementById('clUploadWizardOverlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'clUploadWizardOverlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 10005;
+      background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(5px);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-main), Inter, sans-serif;
+    `;
+
+    overlay.innerHTML = `
+      <div style="background: #fff; border-radius: 20px; padding: 28px; width: 92%; max-width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
+        <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">Upload Bank Statement</h3>
+        <p style="margin: 0 0 20px 0; font-size: 12.5px; color: var(--slate-400);">Step 1: Choose your bank account and select the statement file.</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="cl-form-group">
+            <label>Select Bank Account *</label>
+            <select id="clWzBankSelect" class="je-input" style="height: 38px; cursor: pointer; background: #fff;">
+              ${accounts.map(a => `<option value="${a.id}">${ohEsc(a.name)}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="cl-form-group">
+            <label>Select File (.csv, .xls, .xlsx) *</label>
+            <input type="file" id="clWzFileInput" accept=".csv, .xls, .xlsx" style="padding: 12px; border: 1.5px dashed var(--slate-200); border-radius: 8px; width: 100%; box-sizing: border-box; cursor: pointer; background: var(--slate-50);" />
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 28px; justify-content: flex-end;">
+          <button class="btn btn-secondary" id="clWzCancel1" style="padding: 10px 20px;">Cancel</button>
+          <button class="btn btn-primary" id="clWzNext1" style="padding: 10px 20px;">Next ➔</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#clWzCancel1').addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    overlay.querySelector('#clWzNext1').addEventListener('click', () => {
+      const bankId = Number(overlay.querySelector('#clWzBankSelect').value);
+      const fileInput = overlay.querySelector('#clWzFileInput');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        showToast('Please select a bank statement file to upload.', 'warning');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const fileName = file.name.toLowerCase();
+      const isExcel = fileName.endsWith('.xls') || fileName.endsWith('.xlsx');
+      const isCSV = fileName.endsWith('.csv');
+
+      if (!isCSV && !isExcel) {
+        showToast('Unsupported file type. Please upload a CSV or Excel file.', 'warning');
+        return;
+      }
+
+      showToast('Reading file...', 'info');
+
+      const reader = new FileReader();
+      if (isCSV) {
+        reader.onload = function(e) {
+          const text = e.target.result;
+          const rows = parseCSV(text);
+          if (rows.length === 0) {
+            showToast('The CSV file is empty or could not be parsed.', 'warning');
+            return;
+          }
+          renderMappingStep(rows, bankId);
+        };
+        reader.readAsText(file);
+      } else {
+        // Load SheetJS, then read excel array buffer
+        loadXLSXLibrary(() => {
+          reader.onload = function(e) {
+            const buffer = e.target.result;
+            parseExcel(buffer, (rows) => {
+              if (rows.length === 0) {
+                showToast('The Excel file is empty or could not be parsed.', 'warning');
+                return;
+              }
+              renderMappingStep(rows, bankId);
+            });
+          };
+          reader.readAsArrayBuffer(file);
+        });
+      }
+    });
+
+    function renderMappingStep(parsedRows, bankId) {
+      const savedConfig = window.KYA_STORE.statementMappings[bankId] || {};
+      const savedHeaderRow = typeof savedConfig.headerRowIndex !== 'undefined' ? savedConfig.headerRowIndex : 0;
+
+      overlay.innerHTML = `
+        <div style="background: #fff; border-radius: 20px; padding: 28px; width: 92%; max-width: 580px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
+          <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">Configure Columns Mapping</h3>
+          <p style="margin: 0 0 16px 0; font-size: 12.5px; color: var(--slate-400);">Step 2: Choose heading row and map statement columns. Date, Debit, and Credit columns are mandatory.</p>
+          
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="cl-form-group">
+              <label>Which row contains headings? * (Enter row number, e.g. 1, 2, 3...)</label>
+              <input type="number" min="1" id="clWzHeaderRowInput" class="je-input" value="${Number(savedHeaderRow) + 1}" style="height: 38px;" />
+            </div>
+
+            <!-- Mapping fields grid -->
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; border-top: 1px solid var(--slate-100); padding-top: 16px;">
+              <div class="cl-form-group">
+                <label>Date Column *</label>
+                <select id="clWzMapDate" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+              </div>
+              <div class="cl-form-group">
+                <label>Description Column</label>
+                <select id="clWzMapDescription" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+              </div>
+              <div class="cl-form-group">
+                <label>Debit / Deposit Column *</label>
+                <select id="clWzMapDebit" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+              </div>
+              <div class="cl-form-group">
+                <label>Credit / Withdrawal Column *</label>
+                <select id="clWzMapCredit" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+              </div>
+              <div class="cl-form-group" style="grid-column: 1 / -1;">
+                <label>Balance Column</label>
+                <select id="clWzMapBalance" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 28px; justify-content: flex-end; border-top: 1px solid var(--slate-100); padding-top: 20px;">
+            <button class="btn btn-secondary" id="clWzBack2" style="padding: 10px 20px;">➔ Back</button>
+            <button class="btn btn-primary" id="clWzImport2" style="padding: 10px 20px;">Import Statement</button>
+          </div>
+        </div>
+      `;
+
+      // Cancel button goes back to first step
+      overlay.querySelector('#clWzBack2').addEventListener('click', () => {
+        showUploadStatementWizard();
+      });
+
+      const headerInput = overlay.querySelector('#clWzHeaderRowInput');
+      
+      const updateMappingDropdowns = () => {
+        const rowNum = parseInt(headerInput.value) || 1;
+        const hIdx = Math.max(0, rowNum - 1);
+        const headers = parsedRows[hIdx] || [];
+        const optionsHtml = headers.map((h, cIdx) => {
+          const label = h ? String(h).trim() : `Column ${cIdx + 1}`;
+          return `<option value="${cIdx}">${ohEsc(label)}</option>`;
+        }).join('');
+
+        const fields = ['Date', 'Description', 'Debit', 'Credit', 'Balance'];
+        fields.forEach(f => {
+          const select = overlay.querySelector('#clWzMap' + f);
+          if (!select) return;
+          select.innerHTML = '<option value="">-- Choose Column --</option>' + optionsHtml;
+
+          // Attempt saved mapping match
+          const savedColName = savedConfig[f.toLowerCase() + 'Col'];
+          if (savedColName && headers.includes(savedColName)) {
+            select.value = headers.indexOf(savedColName);
+          } else {
+            // Heuristic matching
+            const lowerH = headers.map(h => String(h || '').toLowerCase().trim());
+            const fL = f.toLowerCase();
+            if (fL === 'date') {
+              const idx = lowerH.findIndex(h => h.includes('date') || h.includes('dt'));
+              if (idx > -1) select.value = idx;
+            } else if (fL === 'description') {
+              const idx = lowerH.findIndex(h => h.includes('desc') || h.includes('particular') || h.includes('narr') || h.includes('remark') || h.includes('info'));
+              if (idx > -1) select.value = idx;
+            } else if (fL === 'debit') {
+              const idx = lowerH.findIndex(h => h.includes('debit') || h.includes('deposit') || h.includes('receipt') || h.includes('in') || h.includes('dr'));
+              if (idx > -1) select.value = idx;
+            } else if (fL === 'credit') {
+              const idx = lowerH.findIndex(h => h.includes('credit') || h.includes('withdrawal') || h.includes('payment') || h.includes('out') || h.includes('cr'));
+              if (idx > -1) select.value = idx;
+            } else if (fL === 'balance') {
+              const idx = lowerH.findIndex(h => h.includes('bal'));
+              if (idx > -1) select.value = idx;
+            }
+          }
+        });
+      };
+
+      headerInput.addEventListener('input', updateMappingDropdowns);
+      updateMappingDropdowns();
+
+      // Trigger Import
+      overlay.querySelector('#clWzImport2').addEventListener('click', () => {
+        const rowNum = parseInt(headerInput.value) || 1;
+        const hIdx = Math.max(0, rowNum - 1);
+        const dateVal = overlay.querySelector('#clWzMapDate').value;
+        const descVal = overlay.querySelector('#clWzMapDescription').value;
+        const debitVal = overlay.querySelector('#clWzMapDebit').value;
+        const creditVal = overlay.querySelector('#clWzMapCredit').value;
+        const balVal = overlay.querySelector('#clWzMapBalance').value;
+
+        if (dateVal === '' || debitVal === '' || creditVal === '') {
+          showToast('Date, Debit, and Credit column mappings are mandatory.', 'warning');
+          return;
+        }
+
+        const headers = parsedRows[hIdx] || [];
+        const dateColName = headers[Number(dateVal)] || '';
+        const descColName = descVal !== '' ? headers[Number(descVal)] : '';
+        const debitColName = headers[Number(debitVal)] || '';
+        const creditColName = headers[Number(creditVal)] || '';
+        const balanceColName = balVal !== '' ? headers[Number(balVal)] : '';
+
+        // Save mapping config
+        window.KYA_STORE.statementMappings = window.KYA_STORE.statementMappings || {};
+        window.KYA_STORE.statementMappings[bankId] = {
+          headerRowIndex: hIdx,
+          dateCol: dateColName,
+          descCol: descColName,
+          debitCol: debitColName,
+          creditCol: creditColName,
+          balanceCol: balanceColName
+        };
+
+        const statementRows = [];
+        const dCol = Number(dateVal);
+        const descCol = descVal !== '' ? Number(descVal) : -1;
+        const drCol = Number(debitVal);
+        const crCol = Number(creditVal);
+        const bCol = balVal !== '' ? Number(balVal) : -1;
+
+        for (let i = hIdx + 1; i < parsedRows.length; i++) {
+          const row = parsedRows[i];
+          if (!row || row.length === 0) continue;
+
+          const rawDate = row[dCol];
+          if (!rawDate) continue;
+
+          const date = parseStatementDate(String(rawDate));
+          if (!date) continue; // Skip invalid rows
+
+          const description = descCol !== -1 ? String(row[descCol] || '').trim() : '';
+          const debit = parseFloat(row[drCol]) || 0;
+          const credit = parseFloat(row[crCol]) || 0;
+          const balance = bCol !== -1 ? parseFloat(row[bCol]) || 0 : 0;
+
+          // Skip if all values are zero
+          if (debit === 0 && credit === 0 && balance === 0) continue;
+
+          statementRows.push({
+            date,
+            description,
+            debit: debit.toFixed(2),
+            credit: credit.toFixed(2),
+            balance: balance.toFixed(2)
+          });
+        }
+
+        window.KYA_STORE.uploadedStatements = window.KYA_STORE.uploadedStatements || {};
+        window.KYA_STORE.uploadedStatements[bankId] = statementRows;
+
+        showToast(`Statement successfully imported with ${statementRows.length} transactions.`, 'success');
+        overlay.remove();
+        renderActiveSubtab();
+        triggerAutoBackup();
+      });
+    }
+  }
+
+  // ── Modal for Showing Bank Account Details ─────────────────────────
+  function showAccountDetailsModal(accId) {
+    const acc = (window.KYA_STORE.bankAccounts || []).find(x => x.id === accId);
+    if (!acc) return;
+
+    const ledger = coaLedgers.find(l => l.id === acc.ledgerId);
+    let bookBal = 0;
+    if (ledger) {
+      const balData = calculateLedgerBalances(ledger);
+      bookBal = balData.closingBalance;
+    }
+    const unreconciledSum = getUnreconciledSum(acc.ledgerId);
+    const reconciledBal = bookBal - unreconciledSum;
+
+    document.getElementById('clAccountDetailsOverlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'clAccountDetailsOverlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 10005;
+      background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(5px);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-main), Inter, sans-serif;
+    `;
+
+    overlay.innerHTML = `
+      <div style="background: #fff; border-radius: 24px; padding: 32px; width: 92%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
+        
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+          <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--blue-50); color: var(--blue-600); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;">
+            🏛️
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">${ohEsc(acc.name)}</h3>
+            <p style="margin: 2px 0 0 0; font-size: 13px; color: var(--slate-400);">${ohEsc(acc.bankName)}</p>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px;">
+          <div style="grid-column: 1 / -1; background: var(--slate-50); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--slate-100);">
+            <div style="font-size: 11px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Account Number</div>
+            <div style="font-size: 16px; font-family: monospace; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.accountNumber || '—')}</div>
+          </div>
+
+          <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">IFSC Code</div>
+            <div style="font-size: 13.5px; font-family: monospace; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.ifsc || '—')}</div>
+          </div>
+          
+          <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Branch</div>
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.branch || '—')}</div>
+          </div>
+
+          <!-- Debit Card details -->
+          <div style="grid-column: 1 / -1; border-top: 1px solid var(--slate-100); padding-top: 16px; margin-top: 4px;">
+            <div style="font-size: 12px; font-weight: 800; color: var(--slate-700); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              💳 Debit Card Information
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+              <div style="grid-column: 1 / -1; background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Card Number</div>
+                <div style="font-size: 14px; font-family: monospace; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.debitCardNo || '—')}</div>
+              </div>
+              <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Expiry Date</div>
+                <div style="font-size: 13.5px; font-family: monospace; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.expiryDate || '—')}</div>
+              </div>
+              <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">CVV</div>
+                <div style="font-size: 13.5px; font-family: monospace; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.cvv || '—')}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Statement & Balance details -->
+          <div style="grid-column: 1 / -1; border-top: 1px solid var(--slate-100); padding-top: 16px; margin-top: 4px;">
+            <div style="font-size: 12px; font-weight: 800; color: var(--slate-700); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              📊 Statement & Balances
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+              <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Last Statement Date</div>
+                <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800);">${ohEsc(acc.lastStatementDate || '—')}</div>
+              </div>
+              <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Opening Balance</div>
+                <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); font-family: monospace;">${fmtAmt(acc.openingBalance || 0)}</div>
+              </div>
+              <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Bank Balance</div>
+                <div style="font-size: 13.5px; font-weight: 700; color: var(--emerald-600); font-family: monospace;">${fmtAmt(reconciledBal)}</div>
+              </div>
+              <div style="background: var(--slate-50); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--slate-100);">
+                <div style="font-size: 10px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Book Balance</div>
+                <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); font-family: monospace;">${fmtAmt(bookBal)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--slate-100); padding-top: 20px;">
+          <button class="btn btn-secondary" id="clDetailsCloseBtn" style="padding: 10px 20px;">Close</button>
+          <button class="btn btn-primary" id="clDetailsEditBtn" style="padding: 10px 20px;">Edit Details</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#clDetailsCloseBtn').addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    overlay.querySelector('#clDetailsEditBtn').addEventListener('click', () => {
+      close();
+      window.clEditAccount(accId);
+    });
   }
 
   // ── Modal for Adding/Editing Bank Account ──────────────────────────
   function showAddAccountModal(editId = null) {
     const acc = editId ? (window.KYA_STORE.bankAccounts || []).find(x => x.id === editId) : null;
     
-    // Get list of existing cash/bank ledgers to optionally link
-    const cceSubgroups = ['sg-cce'];
-    const filteredLedgers = coaLedgers.filter(l => l.type === 'ledger' && cceSubgroups.includes(l.sgId));
+    // Get list of existing bank ledgers (under Bank Account Group Ledger) to optionally link
+    const bankGroup = coaLedgers.find(l => l.name === 'Bank Account' && l.type === 'group-ledger');
+    const bankLedgers = bankGroup ? coaLedgers.filter(l => l.type === 'ledger' && l.glId === bankGroup.id) : [];
+
+    // Find which ledger IDs are already linked to OTHER bank accounts
+    const otherLinkedLedgerIds = (window.KYA_STORE.bankAccounts || [])
+      .filter(a => !acc || a.id !== acc.id)
+      .map(a => a.ledgerId);
+
+    // Filter to only show bank ledgers that are not already linked to another account
+    const filteredLedgers = bankLedgers.filter(l => !otherLinkedLedgerIds.includes(l.id));
     
     const ledgOpts = filteredLedgers.map(l => 
       `<option value="${l.id}" ${acc && acc.ledgerId === l.id ? 'selected' : ''}>${ohEsc(l.name)} (Code: ${l.code || 'None'})</option>`
@@ -729,8 +1316,7 @@
     `;
 
     overlay.innerHTML = `
-      <div style="background: #fff; border-radius: 20px; padding: 28px; width: 92%; max-width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box;">
-        <button id="clAccountModalClose" style="position: absolute; top: 18px; right: 18px; border: none; background: none; font-size: 22px; color: var(--slate-400); cursor: pointer;">×</button>
+      <div style="background: #fff; border-radius: 20px; padding: 28px; width: 92%; max-width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
         
         <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">${modalTitle}</h3>
         <p style="margin: 0 0 20px 0; font-size: 12.5px; color: var(--slate-400);">Link this account to a General Ledger account to fetch automated book updates.</p>
@@ -768,11 +1354,28 @@
             </div>
           </div>
 
-          <div class="cl-form-group">
+          <div class="cl-input-row">
+            <div class="cl-form-group">
+              <label>Debit Card No.</label>
+              <input type="text" id="clMDebitCardNo" class="je-input" placeholder="e.g. 4111 2222 3333 4444" value="${acc ? ohEsc(acc.debitCardNo || '') : ''}" style="height: 38px;" />
+            </div>
+            <div class="cl-form-group">
+              <label>Expiry Date</label>
+              <input type="text" id="clMExpiryDate" class="je-input" placeholder="MM/YY" value="${acc ? ohEsc(acc.expiryDate || '') : ''}" style="height: 38px;" />
+            </div>
+          </div>
+          
+          <div class="cl-input-row">
+            <div class="cl-form-group" style="grid-column: 1 / -1;">
+              <label>CVV</label>
+              <input type="password" id="clMCvv" class="je-input" placeholder="e.g. 123" value="${acc ? ohEsc(acc.cvv || '') : ''}" style="height: 38px; font-family: monospace;" />
+            </div>
+          </div>
+
+          <div class="cl-form-group" style="display: none;">
             <label>Link Ledger Account</label>
             <select id="clMLedgerId" class="je-input" style="height: 38px; cursor: pointer; background: #fff;">
-              <option value="new">— Create New Auto Ledger —</option>
-              ${ledgOpts}
+              <option value="${acc ? acc.ledgerId : 'new'}" selected>${acc ? ohEsc(acc.name) : ''}</option>
             </select>
           </div>
         </div>
@@ -787,7 +1390,6 @@
     document.body.appendChild(overlay);
 
     const close = () => overlay.remove();
-    overlay.querySelector('#clAccountModalClose').addEventListener('click', close);
     overlay.querySelector('#clAccountModalCancel').addEventListener('click', close);
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
@@ -799,6 +1401,9 @@
       const ifsc = overlay.querySelector('#clMIfsc').value.trim().toUpperCase();
       const branch = overlay.querySelector('#clMBranch').value.trim();
       const opening = parseFloat(overlay.querySelector('#clMOpening').value) || 0;
+      const debitCardNo = overlay.querySelector('#clMDebitCardNo').value.trim();
+      const expiryDate = overlay.querySelector('#clMExpiryDate').value.trim();
+      const cvv = overlay.querySelector('#clMCvv').value.trim();
       let ledgerId = overlay.querySelector('#clMLedgerId').value;
 
       if (!name || !bankName) {
@@ -816,8 +1421,16 @@
           oldAcc.accountNumber = accountNumber;
           oldAcc.ifsc = ifsc;
           oldAcc.branch = branch;
+          oldAcc.debitCardNo = debitCardNo;
+          oldAcc.expiryDate = expiryDate;
+          oldAcc.cvv = cvv;
           if (ledgerId !== 'new') {
             oldAcc.ledgerId = Number(ledgerId);
+          }
+          // Sync name to Chart of Accounts ledger
+          const ledger = coaLedgers.find(l => l.id === oldAcc.ledgerId);
+          if (ledger) {
+            ledger.name = name;
           }
         }
         showToast(`Bank Account "${name}" updated.`, 'success');
@@ -851,7 +1464,11 @@
           accountNumber,
           ifsc,
           branch,
-          openingBalance: opening
+          openingBalance: opening,
+          debitCardNo,
+          expiryDate,
+          cvv,
+          lastStatementDate: '—'
         });
         showToast(`Bank Account "${name}" created and linked.`, 'success');
       }
@@ -876,8 +1493,78 @@
     renderCashlinePanel();
   };
 
+  window.clShowAccountDetails = function(id) {
+    showAccountDetailsModal(id);
+  };
+ 
   window.clEditAccount = function(id) {
     showAddAccountModal(id);
+  };
+
+  window.clAutoMatchReconcile = function(bankId) {
+    const accounts = window.KYA_STORE.bankAccounts || [];
+    const currentAcc = accounts.find(x => x.id === Number(bankId));
+    if (!currentAcc) return;
+
+    const uploadedRows = (window.KYA_STORE.uploadedStatements || {})[currentAcc.id] || [];
+    if (uploadedRows.length === 0) {
+      showToast('No statement transactions uploaded yet.', 'warning');
+      return;
+    }
+
+    const linkedLedger = coaLedgers.find(l => l.id === currentAcc.ledgerId);
+    if (!linkedLedger) return;
+
+    // Build txRows exactly as in renderReconciliationView
+    const txRows = [];
+    postedEntries.forEach(entry => {
+      (entry.allRows || []).forEach(row => {
+        if (row.particular.trim() === linkedLedger.name.trim()) {
+          const key = entry.id + '_' + row.id;
+          const reconDate = window.KYA_STORE.reconciliationState[key] || '';
+          const dr = parseFloat(row.debit) || 0;
+          const cr = parseFloat(row.credit) || 0;
+
+          txRows.push({
+            key,
+            date: entry.date,
+            debit: dr,
+            credit: cr,
+            reconDate
+          });
+        }
+      });
+    });
+
+    let matchCount = 0;
+    txRows.forEach(tx => {
+      if (tx.reconDate) return;
+
+      const match = uploadedRows.find(sRow => {
+        const bookAmt = tx.debit > 0 ? tx.debit : tx.credit;
+        const stmtAmt = tx.debit > 0 ? parseFloat(sRow.debit) || 0 : parseFloat(sRow.credit) || 0;
+        
+        if (Math.abs(bookAmt - stmtAmt) > 0.01) return false;
+        
+        const txDate = new Date(tx.date);
+        const stmtDate = new Date(sRow.date);
+        const diffDays = Math.abs(txDate - stmtDate) / (1000 * 60 * 60 * 24);
+        return diffDays <= 7;
+      });
+
+      if (match) {
+        window.KYA_STORE.reconciliationState[tx.key] = match.date;
+        matchCount++;
+      }
+    });
+
+    if (matchCount > 0) {
+      showToast(`Auto-reconciled ${matchCount} matching transactions.`, 'success');
+      renderActiveSubtab();
+      triggerAutoBackup();
+    } else {
+      showToast('No unmatched transactions could be automatically matched.', 'info');
+    }
   };
 
   window.clDeleteAccount = function(id) {
@@ -890,6 +1577,11 @@
       confirmLabel: 'Remove',
       okBg: 'var(--red-600)',
       onConfirm: () => {
+        // Unlink from Bank Account group ledger in Chart of Accounts
+        const ledger = coaLedgers.find(l => l.id === acc.ledgerId);
+        if (ledger) {
+          ledger.glId = null;
+        }
         window.KYA_STORE.bankAccounts = window.KYA_STORE.bankAccounts.filter(x => x.id !== id);
         showToast(`Bank Account "${acc.name}" disconnected.`, 'info');
         renderActiveSubtab();
@@ -904,24 +1596,7 @@
     if (!ledger) return 0;
     
     let sum = 0;
-    postedEntries.forEach(entry => {
-      (entry.allRows || []).forEach(row => {
-        if (row.particular.trim() === ledger.name.trim()) {
-          const key = entry.id + '_' + row.id;
-          const reconDate = window.KYA_STORE.reconciliationState[key];
-          if (!reconDate) {
-            const dr = parseFloat(row.debit) || 0;
-            const cr = parseFloat(row.credit) || 0;
-            // For bank account (Asset): debits increase, credits decrease.
-            // Net outstanding checks are withdrawals (credits) that haven't cleared yet (negative),
-            // and outstanding deposits (debits) that haven't cleared yet (positive).
-            // Reconciled Balance = Book Balance - Unreconciled Transactions.
-            // Outstanding sum = dr - cr
-            sum += (dr - cr);
-          }
-        }
-      });
-    });
+    
     return sum;
   }
 
@@ -930,222 +1605,13 @@
   //  2. BANK RECONCILIATION VIEW
   // ===================================================================
   function renderReconciliationView(target, controls, actionsArea) {
-    const accounts = window.KYA_STORE.bankAccounts || [];
-    
-    if (accounts.length === 0) {
-      if (actionsArea) actionsArea.innerHTML = '';
-      if (controls) controls.innerHTML = '';
-      target.innerHTML = `
-        <div style="padding: 48px; text-align: center; border: 1.5px dashed var(--slate-200); border-radius: 16px; background: var(--slate-50);">
-          <div style="font-size: 14.5px; font-weight: 700; color: var(--slate-700);">No bank accounts available</div>
-          <div style="font-size: 12.5px; color: var(--slate-400); margin-top: 4px; margin-bottom: 20px;">Please create a bank account before performing reconciliation.</div>
-          <button class="btn btn-primary" onclick="_clActiveTopTab='banking'; _clActiveBankingTab='details'; renderCashlinePanel();" style="margin:0 auto;">
-            Go to Bank Accounts
-          </button>
-        </div>
-      `;
-      return;
-    }
+    if (actionsArea) actionsArea.innerHTML = '';
+    if (controls) controls.innerHTML = '';
 
-    // Default select first bank account if not set
-    if (!_clReconBankId && accounts.length > 0) {
-      _clReconBankId = accounts[0].id;
-    }
-
-    const currentAcc = accounts.find(x => x.id === Number(_clReconBankId)) || accounts[0];
-    const linkedLedger = coaLedgers.find(l => l.id === currentAcc.ledgerId);
-
-    // Calculate balances
-    let bookBal = 0;
-    if (linkedLedger) {
-      const balData = calculateLedgerBalances(linkedLedger);
-      bookBal = balData.closingBalance;
-    }
-
-    // Filter bank ledger transaction rows
-    const txRows = [];
-    if (linkedLedger) {
-      postedEntries.forEach(entry => {
-        (entry.allRows || []).forEach(row => {
-          if (row.particular.trim() === linkedLedger.name.trim()) {
-            const key = entry.id + '_' + row.id;
-            const reconDate = window.KYA_STORE.reconciliationState[key] || '';
-            const dr = parseFloat(row.debit) || 0;
-            const cr = parseFloat(row.credit) || 0;
-
-            txRows.push({
-              entryId: entry.id,
-              rowId: row.id,
-              key,
-              date: entry.date,
-              voucherNo: entry.voucherNo || '—',
-              opposite: getOppositeParticulars(entry, linkedLedger.name, dr > 0),
-              debit: dr,
-              credit: cr,
-              reconDate
-            });
-          }
-        });
-      });
-    }
-
-    // Sort entries by date (descending)
-    txRows.sort((a, b) => b.date.localeCompare(a.date));
-
-    // Calculate outstanding sum based on filter state
-    let unreconciledDr = 0;
-    let unreconciledCr = 0;
-    txRows.forEach(tx => {
-      if (!tx.reconDate) {
-        unreconciledDr += tx.debit;
-        unreconciledCr += tx.credit;
-      }
-    });
-
-    const netUnreconciled = unreconciledDr - unreconciledCr;
-    const reconciledBookBal = bookBal - netUnreconciled;
-
-    // Statement balance
-    const stmtEndingBal = parseFloat(_clReconStmtBal) || 0;
-    const difference = reconciledBookBal - stmtEndingBal;
-
-    // Filter transactions list
-    const filteredTx = txRows.filter(tx => {
-      if (_clReconFilter === 'reconciled') return !!tx.reconDate;
-      if (_clReconFilter === 'unreconciled') return !tx.reconDate;
-      return true;
-    });
-
-    let trsHtml = '';
-    if (filteredTx.length === 0) {
-      trsHtml = `
-        <tr>
-          <td colspan="7" style="text-align: center; color: var(--slate-400); padding: 32px;">
-            No transactions match the selected filter (${_clReconFilter}).
-          </td>
-        </tr>
-      `;
-    } else {
-      filteredTx.forEach(tx => {
-        const isRecon = !!tx.reconDate;
-        trsHtml += `
-          <tr>
-            <td style="text-align: center;">
-              <input type="checkbox" style="width: 16px; height: 16px; cursor: pointer;" 
-                     ${isRecon ? 'checked' : ''} 
-                     onchange="window.clToggleReconcile('${tx.key}', this.checked)" />
-            </td>
-            <td>${tx.date}</td>
-            <td>
-              <span style="font-family: monospace; font-weight: 700; color: var(--slate-700);">${tx.voucherNo}</span>
-            </td>
-            <td style="font-weight:500;">${ohEsc(tx.opposite)}</td>
-            <td class="num-val" style="color: var(--emerald-600);">${tx.debit > 0 ? fmtAmt(tx.debit) : '—'}</td>
-            <td class="num-val" style="color: var(--red-600);">${tx.credit > 0 ? fmtAmt(tx.credit) : '—'}</td>
-            <td>
-              ${isRecon 
-                ? `<span class="cl-badge reconciled">Reconciled (${tx.reconDate})</span>` 
-                : `<span class="cl-badge unreconciled">Outstanding</span>`
-              }
-            </td>
-          </tr>
-        `;
-      });
-    }
-
-    // Set Actions in Card Header
-    if (actionsArea) {
-      actionsArea.innerHTML = `
-        <button class="cl-card-btn" id="btnClAdjustCharges" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">＋ Charges</button>
-        <button class="cl-card-btn" id="btnClAdjustInterest" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">＋ Interest</button>
-      `;
-      document.getElementById('btnClAdjustCharges').addEventListener('click', () => {
-        showAdjustmentModal('Charges', linkedLedger);
-      });
-      document.getElementById('btnClAdjustInterest').addEventListener('click', () => {
-        showAdjustmentModal('Interest', linkedLedger);
-      });
-    }
-
-    // Set Controls in Sub-Header
-    if (controls) {
-      controls.innerHTML = `
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <select id="clReconSelectBank" class="je-input" style="height: 34px; font-size: 13px; padding: 0 8px; cursor: pointer; background: #fff; border-radius: 6px; width: 140px;">
-            ${accounts.map(a => `<option value="${a.id}" ${a.id === currentAcc.id ? 'selected' : ''}>${ohEsc(a.name)}</option>`).join('')}
-          </select>
-          <input type="date" id="clReconStmtDate" class="je-input" value="${_clReconStmtDate}" style="height: 34px; font-size: 13px; padding: 0 8px; border-radius: 6px; width: 120px;" />
-          <div style="position: relative;">
-            <span style="position: absolute; left: 8px; top: 7px; font-size: 12px; font-weight: 700; color: var(--slate-400);">₹</span>
-            <input type="number" step="0.01" id="clReconStmtBal" class="je-input" value="${_clReconStmtBal}" placeholder="Ending Bal" style="height: 34px; font-size: 13px; padding: 0 8px 0 18px; border-radius: 6px; width: 100px;" />
-          </div>
-        </div>
-      `;
-      document.getElementById('clReconSelectBank').addEventListener('change', (e) => {
-        _clReconBankId = e.target.value;
-        renderActiveSubtab();
-      });
-      document.getElementById('clReconStmtDate').addEventListener('change', (e) => {
-        _clReconStmtDate = e.target.value;
-      });
-      document.getElementById('clReconStmtBal').addEventListener('input', (e) => {
-        _clReconStmtBal = e.target.value;
-        renderActiveSubtab();
-      });
-    }
-
-    // Main Sub-Content
     target.innerHTML = `
-      <div class="recon-stats">
-        <div class="recon-stat-card">
-          <span class="recon-stat-label">Book Balance</span>
-          <span class="recon-stat-val">${fmtAmt(bookBal)}</span>
-        </div>
-        <div class="recon-stat-card">
-          <span class="recon-stat-label" title="Uncleared checks / deposits">Outstanding Net</span>
-          <span class="recon-stat-val" style="color:var(--slate-500);">${fmtAmt(netUnreconciled)}</span>
-        </div>
-        <div class="recon-stat-card">
-          <span class="recon-stat-label">Reconciled Balance</span>
-          <span class="recon-stat-val" style="color:var(--emerald-700);">${fmtAmt(reconciledBookBal)}</span>
-        </div>
-        <div class="recon-stat-card">
-          <span class="recon-stat-label">Difference (Stmt vs Recon)</span>
-          <span class="recon-stat-val ${Math.abs(difference) < 0.005 ? 'diff-success' : 'diff-error'}">
-            ${Math.abs(difference) < 0.005 ? '✓ Reconciled' : fmtAmt(difference)}
-          </span>
-        </div>
-      </div>
-
-      <!-- Filter tabs -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div class="sales-paystatus-wrap" style="width: auto; margin: 0;">
-          <div class="sales-paystatus-bg" style="width: 90px; left: ${_clReconFilter === 'all' ? '0px' : (_clReconFilter === 'reconciled' ? '90px' : '180px')};"></div>
-          <button class="sales-paystatus-btn ${_clReconFilter === 'all' ? 'active' : ''}" style="width:90px;" onclick="window.clSetReconFilter('all')">All Rows</button>
-          <button class="sales-paystatus-btn ${_clReconFilter === 'reconciled' ? 'active' : ''}" style="width:90px;" onclick="window.clSetReconFilter('reconciled')">Cleared</button>
-          <button class="sales-paystatus-btn ${_clReconFilter === 'unreconciled' ? 'active' : ''}" style="width:90px;" onclick="window.clSetReconFilter('unreconciled')">Outstanding</button>
-        </div>
-        <span style="font-size: 12px; color: var(--slate-400); font-weight: 600;">Showing ${filteredTx.length} lines</span>
-      </div>
-
-      <!-- Transactions list -->
-      <div style="border: 1.5px solid var(--slate-200); border-radius: 12px; max-height: 400px; overflow-y: auto; background: #fff;">
-        <table class="cl-table">
-          <thead>
-            <tr>
-              <th style="width: 50px; text-align: center;">Clear</th>
-              <th style="width: 100px;">Date</th>
-              <th style="width: 110px;">Voucher No</th>
-              <th>Opposite Account</th>
-              <th style="text-align: right; width: 120px;">Deposit (Dr)</th>
-              <th style="text-align: right; width: 120px;">Withdrawal (Cr)</th>
-              <th style="width: 150px;">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${trsHtml}
-          </tbody>
-        </table>
+      <div style="padding: 60px 48px; text-align: center; border: 1.5px dashed var(--slate-200); border-radius: 16px; background: var(--slate-50); margin-top: 20px;">
+        <div style="font-size: 16px; font-weight: 700; color: var(--slate-700);">Reconciliation Feature Upcoming</div>
+        <div style="font-size: 13px; color: var(--slate-400); margin-top: 6px;">This module is under development and will be available in a future update.</div>
       </div>
     `;
   }
@@ -1298,9 +1764,314 @@
   //  3. CASHBOOK (CASH RECEIPTS & PAYMENTS) VIEW
   // ===================================================================
   function renderCashbookView(target, controls, actionsArea) {
-    // Select all CCE (Cash and Cash Equivalents) ledger accounts
-    const cceAccounts = coaLedgers.filter(l => l.type === 'ledger' && l.sgId === 'sg-cce');
+    const isBankingMode = _clActiveTopTab === 'banking';
 
+    if (isBankingMode) {
+      const bankAccounts = window.KYA_STORE.bankAccounts || [];
+      if (bankAccounts.length === 0) {
+        if (actionsArea) actionsArea.innerHTML = '';
+        if (controls) controls.innerHTML = '';
+        target.innerHTML = `
+          <div style="padding: 48px; text-align: center; border: 1.5px dashed var(--slate-200); border-radius: 16px; background: var(--slate-50);">
+            <div style="font-size: 32px; margin-bottom: 12px;">🏛️</div>
+            <div style="font-size: 14.5px; font-weight: 700; color: var(--slate-700);">No Bank Accounts defined</div>
+            <div style="font-size: 12.5px; color: var(--slate-400); margin-top: 4px;">Please create a Bank account first.</div>
+          </div>
+        `;
+        return;
+      }
+
+      if (!_clReconBankId && bankAccounts.length > 0) {
+        _clReconBankId = bankAccounts[0].id;
+      }
+
+      const currentAcc = bankAccounts.find(x => x.id === Number(_clReconBankId)) || bankAccounts[0];
+      const selectedLedger = coaLedgers.find(l => l.id === currentAcc.ledgerId);
+
+      if (!selectedLedger) {
+        target.innerHTML = `
+          <div style="padding: 48px; text-align: center; border: 1.5px dashed var(--slate-200); border-radius: 16px; background: var(--slate-50);">
+            <div style="font-size: 14.5px; font-weight: 700; color: var(--slate-700);">Linked ledger not found</div>
+          </div>
+        `;
+        return;
+      }
+
+      const statementRows = (window.KYA_STORE.uploadedStatements || {})[currentAcc.id] || [];
+
+      let openingBal = parseFloat(selectedLedger.openingBalance) || 0;
+      if (statementRows.length > 0) {
+        const firstRow = statementRows[0];
+        const parsedFirstBal = parseFloat(firstRow.balance) || 0;
+        const parsedFirstDb = parseFloat(firstRow.debit) || 0;
+        const parsedFirstCr = parseFloat(firstRow.credit) || 0;
+        if (parsedFirstBal !== 0) {
+          openingBal = parsedFirstBal - parsedFirstDb + parsedFirstCr;
+        }
+      }
+
+      function formatToDDMMYYYY(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateStr;
+      }
+
+      // Chronological sort to calculate running balances correctly
+      const chronoRows = [...statementRows].sort((a, b) => a.date.localeCompare(b.date));
+      let runningBal = openingBal;
+      chronoRows.forEach((line) => {
+        const dbVal = parseFloat(line.debit) || 0;
+        const crVal = parseFloat(line.credit) || 0;
+        const parsedBal = parseFloat(line.balance) || 0;
+        if (parsedBal !== 0) {
+          runningBal = parsedBal;
+        } else {
+          runningBal = runningBal + dbVal - crVal;
+        }
+        line.computedBalance = runningBal;
+      });
+
+      // Filter by date range
+      let displayRows = [...chronoRows];
+      if (_clStatementFromDate) {
+        displayRows = displayRows.filter(line => line.date >= _clStatementFromDate);
+      }
+      if (_clStatementToDate) {
+        displayRows = displayRows.filter(line => line.date <= _clStatementToDate);
+      }
+
+      // Filter by search query
+      if (_clStatementSearchQuery) {
+        const query = _clStatementSearchQuery.toLowerCase().trim();
+        displayRows = displayRows.filter(line => {
+          const desc = (line.description || '').toLowerCase();
+          const dateStr = formatToDDMMYYYY(line.date).toLowerCase();
+          const debit = String(line.debit || '').toLowerCase();
+          const credit = String(line.credit || '').toLowerCase();
+          return desc.includes(query) || dateStr.includes(query) || debit.includes(query) || credit.includes(query);
+        });
+      }
+
+      // Sort display rows
+      if (_clStatementSortOrder === 'newest') {
+        displayRows.sort((a, b) => b.date.localeCompare(a.date));
+      } else {
+        displayRows.sort((a, b) => a.date.localeCompare(b.date));
+      }
+
+      // Calculate stats based on period
+      let periodOpeningBal = openingBal;
+      let periodClosingBal = openingBal;
+      if (chronoRows.length > 0) {
+        if (_clStatementFromDate) {
+          const beforeRows = chronoRows.filter(r => r.date < _clStatementFromDate);
+          if (beforeRows.length > 0) {
+            periodOpeningBal = beforeRows[beforeRows.length - 1].computedBalance;
+          }
+        }
+        if (_clStatementToDate) {
+          const onOrBeforeRows = chronoRows.filter(r => r.date <= _clStatementToDate);
+          if (onOrBeforeRows.length > 0) {
+            periodClosingBal = onOrBeforeRows[onOrBeforeRows.length - 1].computedBalance;
+          } else {
+            periodClosingBal = periodOpeningBal;
+          }
+        } else {
+          periodClosingBal = chronoRows[chronoRows.length - 1].computedBalance;
+        }
+      }
+
+      let rowsHtml = '';
+      if (displayRows.length > 0) {
+        displayRows.forEach((line) => {
+          const dbVal = parseFloat(line.debit) || 0;
+          const crVal = parseFloat(line.credit) || 0;
+          rowsHtml += `
+            <tr>
+              <td>${formatToDDMMYYYY(line.date)}</td>
+              <td>
+                <div style="font-weight: 600; color: var(--slate-800);">${ohEsc(line.description || '—')}</div>
+              </td>
+              <td class="num-val" style="color: var(--emerald-600); text-align: right;">${dbVal > 0 ? fmtAmt(dbVal) : '—'}</td>
+              <td class="num-val" style="color: var(--red-600); text-align: right;">${crVal > 0 ? fmtAmt(crVal) : '—'}</td>
+              <td class="num-val" style="text-align: right;">${fmtAmt(line.computedBalance)}</td>
+            </tr>
+          `;
+        });
+      } else {
+        rowsHtml = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--slate-400); padding: 48px;">
+              <div style="font-size: 28px; margin-bottom: 8px;">📄</div>
+              <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-700);">No statement entries found</div>
+              <div style="font-size: 12px; margin-top: 4px; color: var(--slate-400);">Try adjusting your search query, date filters, or import a new statement.</div>
+            </td>
+          </tr>
+        `;
+      }
+
+      // Actions in Blue Card header
+      if (actionsArea) {
+        actionsArea.innerHTML = `
+          <button class="cl-card-btn" id="btnClUploadStatement" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">
+            Upload Statement
+          </button>
+        `;
+        document.getElementById('btnClUploadStatement').addEventListener('click', () => {
+          showUploadStatementWizard();
+        });
+      }
+
+      // Check if statement container already exists in DOM to avoid focus loss
+      const existingContainer = document.getElementById('clStmtContainer');
+      if (existingContainer) {
+        // Update stats
+        document.getElementById('clStmtOpeningBalVal').textContent = fmtAmt(periodOpeningBal);
+        const changeVal = document.getElementById('clStmtNetChangeVal');
+        const netChange = periodClosingBal - periodOpeningBal;
+        changeVal.textContent = fmtAmt(netChange);
+        changeVal.style.color = netChange >= 0 ? 'var(--emerald-600)' : 'var(--red-600)';
+        document.getElementById('clStmtClosingBalVal').textContent = fmtAmt(periodClosingBal);
+
+        // Update entries count
+        document.getElementById('clStmtShowingCount').textContent = `Showing ${displayRows.length} of ${statementRows.length} entries`;
+
+        // Update table body
+        document.getElementById('clStmtTableBody').innerHTML = rowsHtml;
+      } else {
+        // Render the full structure
+        target.innerHTML = `
+          <div id="clStmtContainer">
+            <!-- Inline bank selection header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--slate-50); border: 1.5px solid var(--slate-200); border-radius: 12px; padding: 12px 16px;">
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn btn-secondary" id="clInlineTabBack" style="height:34px; font-size:12.5px; padding: 0 14px; font-weight:600; cursor:pointer; border-radius:6px; display:inline-flex; align-items:center; gap:6px; margin-right:12px;">
+                  ← Back
+                </button>
+                <span style="font-size: 13px; font-weight: 700; color: var(--slate-700);">Select Bank Account:</span>
+                <select id="clCbSelectBankInline" class="je-input" style="height: 34px; font-size: 13.5px; padding: 0 8px; cursor: pointer; background: #fff; border-radius: 6px; width: 220px; font-weight: 600; color: var(--slate-800);">
+                  ${bankAccounts.map(a => `<option value="${a.id}" ${a.id === currentAcc.id ? 'selected' : ''}>${ohEsc(a.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div id="clStmtShowingCount" style="font-size: 12.5px; color: var(--slate-400); font-weight: 600;">
+                Showing ${displayRows.length} of ${statementRows.length} entries
+              </div>
+            </div>
+
+            <!-- Statement Filter Control Bar -->
+            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; padding: 12px 16px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label style="font-size: 12.5px; font-weight: 600; color: var(--slate-600);">From:</label>
+                <input type="date" id="clStmtDateFrom" class="je-input" style="height: 34px; padding: 0 8px; font-size: 12.5px; width: 135px;" value="${_clStatementFromDate}" />
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label style="font-size: 12.5px; font-weight: 600; color: var(--slate-600);">To:</label>
+                <input type="date" id="clStmtDateTo" class="je-input" style="height: 34px; padding: 0 8px; font-size: 12.5px; width: 135px;" value="${_clStatementToDate}" />
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 6px; margin-left: 10px;">
+                <label style="font-size: 12.5px; font-weight: 600; color: var(--slate-600);">Sort:</label>
+                <select id="clStmtSortOrder" class="je-input" style="height: 34px; padding: 0 8px; font-size: 12.5px; background: #fff; cursor: pointer; width: 140px;">
+                  <option value="oldest" ${_clStatementSortOrder === 'oldest' ? 'selected' : ''}>Oldest First</option>
+                  <option value="newest" ${_clStatementSortOrder === 'newest' ? 'selected' : ''}>Newest First</option>
+                </select>
+              </div>
+
+              <div style="position: relative; flex-grow: 1; min-width: 180px; margin-left: 10px;">
+                <input type="text" id="clStmtSearchInput" placeholder="Search description, amount..." class="je-input" style="width: 100%; height: 34px; padding: 0 12px 0 32px; font-size: 12.5px; box-sizing: border-box;" value="${ohEsc(_clStatementSearchQuery)}" />
+                <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; color: var(--slate-400); pointer-events: none;">
+                  <svg width="12" height="12" viewBox="0 0 17 17" fill="none">
+                    <circle cx="7.5" cy="7.5" r="5" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M11.5 11.5l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </span>
+              </div>
+            </div>
+
+            <!-- Stats row -->
+            <div class="recon-stats" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px; padding: 12px 16px;">
+              <div class="recon-stat-card">
+                <span class="recon-stat-label">Opening Balance</span>
+                <span class="recon-stat-val" id="clStmtOpeningBalVal">${fmtAmt(periodOpeningBal)}</span>
+              </div>
+              <div class="recon-stat-card">
+                <span class="recon-stat-label">Net Period Change</span>
+                <span class="recon-stat-val" id="clStmtNetChangeVal" style="color: ${periodClosingBal >= periodOpeningBal ? 'var(--emerald-600)' : 'var(--red-600)'};">
+                  ${fmtAmt(periodClosingBal - periodOpeningBal)}
+                </span>
+              </div>
+              <div class="recon-stat-card">
+                <span class="recon-stat-label">Closing Balance</span>
+                <span class="recon-stat-val" id="clStmtClosingBalVal" style="color:var(--blue-700);">${fmtAmt(periodClosingBal)}</span>
+              </div>
+            </div>
+
+            <div style="border: 1.5px solid var(--slate-200); border-radius: 12px; max-height: 70vh; overflow-y: auto; background: #fff;">
+              <table class="cl-table">
+                <thead>
+                  <tr>
+                    <th style="width: 110px;">Date</th>
+                    <th>Description</th>
+                    <th style="text-align: right; width: 120px;">Debit</th>
+                    <th style="text-align: right; width: 120px;">Credit</th>
+                    <th style="text-align: right; width: 130px;">Balance</th>
+                  </tr>
+                </thead>
+                <tbody id="clStmtTableBody">
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+
+        // Wire event listeners on initial full render
+        document.getElementById('clInlineTabBack').addEventListener('click', () => {
+          if (typeof window.clSwitchBankingTabGlobal === 'function') {
+            window.clSwitchBankingTabGlobal('details');
+          }
+        });
+
+        document.getElementById('clStmtDateFrom').addEventListener('change', (e) => {
+          _clStatementFromDate = e.target.value;
+          renderActiveSubtab();
+        });
+
+        document.getElementById('clStmtDateTo').addEventListener('change', (e) => {
+          _clStatementToDate = e.target.value;
+          renderActiveSubtab();
+        });
+
+        document.getElementById('clStmtSortOrder').addEventListener('change', (e) => {
+          _clStatementSortOrder = e.target.value;
+          renderActiveSubtab();
+        });
+
+        document.getElementById('clStmtSearchInput').addEventListener('input', (e) => {
+          _clStatementSearchQuery = e.target.value;
+          renderActiveSubtab();
+        });
+
+        document.getElementById('clCbSelectBankInline').addEventListener('change', (e) => {
+          _clReconBankId = Number(e.target.value);
+          _clStatementFromDate = '';
+          _clStatementToDate = '';
+          _clStatementSearchQuery = '';
+          _clStatementSortOrder = 'oldest';
+          // Clear target so that it full-renders and resets the HTML state
+          target.innerHTML = '';
+          renderActiveSubtab();
+        });
+      }
+
+      return;
+    }
+
+    // --- BOOKS MODE (Cash & Cash Equivalents general ledger cashbook) ---
+    const cceAccounts = coaLedgers.filter(l => l.type === 'ledger' && l.sgId === 'sg-cce');
     if (cceAccounts.length === 0) {
       if (actionsArea) actionsArea.innerHTML = '';
       if (controls) controls.innerHTML = '';
@@ -1319,17 +2090,13 @@
     }
 
     const selectedLedger = cceAccounts.find(l => l.id.toString() === _clCashbookAccountId) || cceAccounts[0];
-
-    // Compute Opening Balance before period and matching transactions inside the period
     const fromVal = _clCashflowDateFrom;
     const toVal = _clCashflowDateTo;
 
-    // Retrieve ledger balance metrics
     const balData = calculateLedgerBalances(selectedLedger, fromVal, toVal);
     const openingBal = balData.openingBalance;
     const closingBal = balData.closingBalance;
 
-    // Filter transactions
     const cbLines = [];
     postedEntries.forEach(entry => {
       if (fromVal && entry.date < fromVal) return;
@@ -1353,10 +2120,8 @@
       });
     });
 
-    // Sort entries chronologically (oldest first for running cashbook layout)
     cbLines.sort((a, b) => a.date.localeCompare(b.date));
 
-    // Build rows with running balance
     let rowsHtml = `
       <tr style="background:#fafbfc; font-weight: 700;">
         <td colspan="4">Opening Balance</td>
@@ -1393,7 +2158,6 @@
       `;
     });
 
-    // Set Actions in Card Header
     if (actionsArea) {
       actionsArea.innerHTML = `
         <button class="btn btn-success" id="btnClRecordReceipt" style="height: 32px; font-size: 12.5px; padding: 0 12px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
@@ -1411,7 +2175,6 @@
       });
     }
 
-    // Set Controls in Sub-Header
     if (controls) {
       controls.innerHTML = `
         <div style="display: flex; gap: 8px; align-items: center;">
@@ -1438,7 +2201,6 @@
       });
     }
 
-    // Main Sub-Content
     target.innerHTML = `
       <div class="recon-stats" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px; padding: 12px 16px;">
         <div class="recon-stat-card">
