@@ -7,6 +7,13 @@
     const s = document.createElement('style');
     s.id = 'cashline-styles';
     s.textContent = `
+      :root {
+        --emerald-600: #16a34a;
+        --emerald-500: #10b981;
+        --emerald-700: #15803d;
+        --emerald-50: #ecfdf5;
+        --red-600: #dc2626;
+      }
       .cashline-layout {
         display: block;
         font-family: var(--font-main), 'Inter', sans-serif;
@@ -228,29 +235,36 @@
       .recon-stats {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
+        gap: 12px;
         background: var(--slate-50);
         border: 1.5px solid var(--slate-200);
         border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 24px;
+        padding: 12px;
+        margin-bottom: 20px;
       }
       .recon-stat-card {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        justify-content: center;
+        gap: 5px;
+        background: #ffffff;
+        border: 1px solid var(--slate-200);
+        border-radius: 10px;
+        padding: 12px 16px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
       }
       .recon-stat-label {
-        font-size: 10.5px;
+        font-size: 11px;
         font-weight: 700;
-        color: var(--slate-400);
+        color: var(--slate-500);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
       }
       .recon-stat-val {
-        font-size: 16px;
+        font-size: 16.5px;
         font-weight: 800;
         color: var(--slate-800);
+        font-variant-numeric: tabular-nums;
       }
       .recon-stat-val.diff-error {
         color: var(--red-600);
@@ -285,10 +299,11 @@
         background: var(--slate-50);
       }
       .num-val {
-        font-family: monospace;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        font-variant-numeric: tabular-nums;
         font-weight: 600;
         text-align: right;
-        font-size: 13.5px;
+        font-size: 13px;
       }
       .cashflow-cat-hdr {
         font-weight: 800;
@@ -368,6 +383,8 @@
   let _clStatementToDate = '';
   let _clStatementSortOrder = 'oldest'; // 'oldest' (old to new) or 'newest' (new to old)
   let _clStatementSearchQuery = '';
+  let _clStatementSelectMode = false;
+  let _clStatementSelectedIndices = new Set();
 
   // Cashbook sub-state
   let _clCashbookAccountId = '';
@@ -520,7 +537,6 @@
     const mainArea = document.getElementById('clMainContentArea');
     const actionsArea = document.getElementById('clTitleCardActions');
     if (!mainArea) return;
-    if (actionsArea) actionsArea.innerHTML = '';
 
     if (_clActiveTopTab === 'banking') {
       renderBankingTab(mainArea, actionsArea);
@@ -537,16 +553,19 @@
       switchBankingTab(tab, actionsArea);
     };
 
-    mainArea.innerHTML = `
-      <div class="oh-layout" id="clBankingLayoutContainer">
-        <!-- Sidebar -->
-        <div class="oh-sub-tabs" id="clBankingSidebar" role="tablist" aria-label="Banking sections">
-        </div>
+    let layoutContainer = document.getElementById('clBankingLayoutContainer');
+    if (!layoutContainer || !mainArea.contains(layoutContainer)) {
+      mainArea.innerHTML = `
+        <div class="oh-layout" id="clBankingLayoutContainer">
+          <!-- Sidebar -->
+          <div class="oh-sub-tabs" id="clBankingSidebar" role="tablist" aria-label="Banking sections">
+          </div>
 
-        <!-- Content -->
-        <div class="oh-content-area" id="clBankingContentArea"></div>
-      </div>
-    `;
+          <!-- Content -->
+          <div class="oh-content-area" id="clBankingContentArea"></div>
+        </div>
+      `;
+    }
 
     switchBankingTab(_clActiveBankingTab, actionsArea);
   }
@@ -614,7 +633,6 @@
       }
     }
 
-    if (actionsArea) actionsArea.innerHTML = '';
     const bankArea = document.getElementById('clBankingContentArea');
     if (!bankArea) return;
 
@@ -676,7 +694,7 @@
   // ── Helper: Format balances ───────────────────────────────────────
   function fmtAmt(v) {
     const val = parseFloat(v) || 0;
-    return '₹&thinsp;' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return '₹\u2009' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   // Helper: Retrieve main group of ledger
@@ -896,33 +914,85 @@
     overlay.id = 'clUploadWizardOverlay';
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 10005;
-      background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(5px);
+      background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(6px);
       display: flex; align-items: center; justify-content: center;
       font-family: var(--font-main), Inter, sans-serif;
     `;
 
     overlay.innerHTML = `
-      <div style="background: #fff; border-radius: 20px; padding: 28px; width: 92%; max-width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
-        <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">Upload Bank Statement</h3>
-        <p style="margin: 0 0 20px 0; font-size: 12.5px; color: var(--slate-400);">Step 1: Choose your bank account and select the statement file.</p>
+      <div class="cl-wizard-container">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <div class="cl-wizard-header-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Statement Import
+            </div>
+            <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">Upload Bank Statement</h3>
+            <p style="margin: 0; font-size: 12.5px; color: var(--slate-400);">Choose target bank account and select your statement file.</p>
+          </div>
+          <button id="clWzCloseBtn" style="background: transparent; border: none; font-size: 18px; font-weight: 700; color: #94a3b8; cursor: pointer; padding: 4px; line-height: 1;" type="button">✕</button>
+        </div>
+
+        <!-- Step Progress Indicator -->
+        <div class="cl-wizard-progress">
+          <div class="cl-wizard-step-item active">
+            <span class="cl-wizard-step-num">1</span>
+            <span>Select File</span>
+          </div>
+          <div class="cl-wizard-step-divider"></div>
+          <div class="cl-wizard-step-item">
+            <span class="cl-wizard-step-num">2</span>
+            <span>Map Columns</span>
+          </div>
+        </div>
         
-        <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 18px;">
           <div class="cl-form-group">
-            <label>Select Bank Account *</label>
-            <select id="clWzBankSelect" class="je-input" style="height: 38px; cursor: pointer; background: #fff;">
+            <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 6px; display: block;">Target Bank Account *</label>
+            <select id="clWzBankSelect" class="je-input" style="height: 40px; cursor: pointer; background: #fff; border-radius: 10px; border: 1.5px solid #cbd5e1; font-weight: 600; width: 100%; font-size: 13.5px; padding: 0 12px;">
               ${accounts.map(a => `<option value="${a.id}">${ohEsc(a.name)}</option>`).join('')}
             </select>
           </div>
 
           <div class="cl-form-group">
-            <label>Select File (.csv, .xls, .xlsx) *</label>
-            <input type="file" id="clWzFileInput" accept=".csv, .xls, .xlsx" style="padding: 12px; border: 1.5px dashed var(--slate-200); border-radius: 8px; width: 100%; box-sizing: border-box; cursor: pointer; background: var(--slate-50);" />
+            <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 6px; display: block;">Bank Statement File *</label>
+            
+            <!-- Hidden actual file input -->
+            <input type="file" id="clWzFileInput" accept=".csv, .xls, .xlsx" style="display: none;" />
+
+            <!-- Custom Modern Dropzone -->
+            <div id="clWzDropzone" class="cl-dropzone">
+              <div class="cl-dropzone-icon-bg">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="cl-dropzone-title">Click to upload or drag & drop</div>
+              <div class="cl-dropzone-subtitle">CSV, XLS, or XLSX bank statements (max 10MB)</div>
+              <div class="cl-dropzone-tags">
+                <span class="cl-dropzone-tag">.CSV</span>
+                <span class="cl-dropzone-tag">.XLS</span>
+                <span class="cl-dropzone-tag">.XLSX</span>
+              </div>
+            </div>
+
+            <!-- File Selected Preview Card (Hidden initially) -->
+            <div id="clWzSelectedCard" class="cl-file-card" style="display: none;">
+              <div id="clWzFileIcon" class="cl-file-icon excel">XLS</div>
+              <div class="cl-file-info">
+                <div id="clWzFileName" class="cl-file-name">statement.xlsx</div>
+                <div class="cl-file-meta">
+                  <span id="clWzFileSize">0 KB</span>
+                  <span>•</span>
+                  <span class="cl-file-badge success">✓ File Ready</span>
+                </div>
+              </div>
+              <button id="clWzChangeFileBtn" class="cl-file-remove-btn" type="button">Change</button>
+            </div>
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-top: 28px; justify-content: flex-end;">
-          <button class="btn btn-secondary" id="clWzCancel1" style="padding: 10px 20px;">Cancel</button>
-          <button class="btn btn-primary" id="clWzNext1" style="padding: 10px 20px;">Next ➔</button>
+        <div style="display: flex; gap: 10px; margin-top: 26px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 18px;">
+          <button class="btn btn-secondary" id="clWzCancel1" style="padding: 10px 20px; border-radius: 10px; font-weight: 600;">Cancel</button>
+          <button class="btn btn-primary" id="clWzNext1" style="padding: 10px 22px; border-radius: 10px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37,99,235,0.25);">Next Step ➔</button>
         </div>
       </div>
     `;
@@ -931,7 +1001,84 @@
 
     const close = () => overlay.remove();
     overlay.querySelector('#clWzCancel1').addEventListener('click', close);
+    overlay.querySelector('#clWzCloseBtn')?.addEventListener('click', close);
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    // Wire up interactive Dropzone & File preview
+    const dropzone = overlay.querySelector('#clWzDropzone');
+    const fileInput = overlay.querySelector('#clWzFileInput');
+    const selectedCard = overlay.querySelector('#clWzSelectedCard');
+    const fileNameEl = overlay.querySelector('#clWzFileName');
+    const fileSizeEl = overlay.querySelector('#clWzFileSize');
+    const fileIconEl = overlay.querySelector('#clWzFileIcon');
+    const changeFileBtn = overlay.querySelector('#clWzChangeFileBtn');
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function updateSelectedFileUI(file) {
+      if (!file) {
+        dropzone.style.display = 'flex';
+        selectedCard.style.display = 'none';
+        return;
+      }
+      const name = file.name;
+      const ext = name.split('.').pop().toLowerCase();
+      
+      fileIconEl.textContent = ext.toUpperCase();
+      if (ext === 'csv') {
+        fileIconEl.className = 'cl-file-icon csv';
+      } else {
+        fileIconEl.className = 'cl-file-icon excel';
+      }
+      
+      fileNameEl.textContent = name;
+      fileSizeEl.textContent = formatBytes(file.size);
+      
+      dropzone.style.display = 'none';
+      selectedCard.style.display = 'flex';
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    changeFileBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files[0]) {
+        updateSelectedFileUI(fileInput.files[0]);
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+      }, false);
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt?.files;
+      if (files && files.length > 0) {
+        try {
+          fileInput.files = files;
+        } catch (err) {}
+        updateSelectedFileUI(files[0]);
+      }
+    });
 
     overlay.querySelector('#clWzNext1').addEventListener('click', () => {
       const bankId = Number(overlay.querySelector('#clWzBankSelect').value);
@@ -988,47 +1135,72 @@
       const savedHeaderRow = typeof savedConfig.headerRowIndex !== 'undefined' ? savedConfig.headerRowIndex : 0;
 
       overlay.innerHTML = `
-        <div style="background: #fff; border-radius: 20px; padding: 28px; width: 92%; max-width: 580px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position: relative; box-sizing: border-box; max-height: 90vh; overflow-y: auto;">
-          <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">Configure Columns Mapping</h3>
-          <p style="margin: 0 0 16px 0; font-size: 12.5px; color: var(--slate-400);">Step 2: Choose heading row and map statement columns. Date, Debit, and Credit columns are mandatory.</p>
+        <div class="cl-wizard-container cl-wizard-container-lg">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div class="cl-wizard-header-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Statement Import
+              </div>
+              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: var(--slate-900);">Configure Column Mapping</h3>
+              <p style="margin: 0; font-size: 12.5px; color: var(--slate-400);">Choose heading row and map statement columns. Date, Debit, and Credit columns are mandatory.</p>
+            </div>
+            <button id="clWzCloseBtn2" style="background: transparent; border: none; font-size: 18px; font-weight: 700; color: #94a3b8; cursor: pointer; padding: 4px; line-height: 1;" type="button">✕</button>
+          </div>
+
+          <!-- Step Progress Indicator -->
+          <div class="cl-wizard-progress">
+            <div class="cl-wizard-step-item completed">
+              <span class="cl-wizard-step-num">✓</span>
+              <span>Select File</span>
+            </div>
+            <div class="cl-wizard-step-divider active"></div>
+            <div class="cl-wizard-step-item active">
+              <span class="cl-wizard-step-num">2</span>
+              <span>Map Columns</span>
+            </div>
+          </div>
           
           <div style="display: flex; flex-direction: column; gap: 16px;">
             <div class="cl-form-group">
-              <label>Which row contains headings? * (Enter row number, e.g. 1, 2, 3...)</label>
-              <input type="number" min="1" id="clWzHeaderRowInput" class="je-input" value="${Number(savedHeaderRow) + 1}" style="height: 38px;" />
+              <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 6px; display: block;">Which row contains headings? * (Enter row number, e.g. 1, 2, 3...)</label>
+              <input type="number" min="1" id="clWzHeaderRowInput" class="je-input" value="${Number(savedHeaderRow) + 1}" style="height: 38px; border-radius: 8px;" />
             </div>
 
             <!-- Mapping fields grid -->
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; border-top: 1px solid var(--slate-100); padding-top: 16px;">
               <div class="cl-form-group">
-                <label>Date Column *</label>
-                <select id="clWzMapDate" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+                <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 4px; display: block;">Date Column *</label>
+                <select id="clWzMapDate" class="je-input" style="height: 38px; background:#fff; cursor:pointer; border-radius:8px; width:100%;"></select>
               </div>
               <div class="cl-form-group">
-                <label>Description Column</label>
-                <select id="clWzMapDescription" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+                <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 4px; display: block;">Description Column</label>
+                <select id="clWzMapDescription" class="je-input" style="height: 38px; background:#fff; cursor:pointer; border-radius:8px; width:100%;"></select>
               </div>
               <div class="cl-form-group">
-                <label>Debit / Deposit Column *</label>
-                <select id="clWzMapDebit" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+                <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 4px; display: block;">Debit / Deposit Column *</label>
+                <select id="clWzMapDebit" class="je-input" style="height: 38px; background:#fff; cursor:pointer; border-radius:8px; width:100%;"></select>
               </div>
               <div class="cl-form-group">
-                <label>Credit / Withdrawal Column *</label>
-                <select id="clWzMapCredit" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+                <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 4px; display: block;">Credit / Withdrawal Column *</label>
+                <select id="clWzMapCredit" class="je-input" style="height: 38px; background:#fff; cursor:pointer; border-radius:8px; width:100%;"></select>
               </div>
               <div class="cl-form-group" style="grid-column: 1 / -1;">
-                <label>Balance Column</label>
-                <select id="clWzMapBalance" class="je-input" style="height: 36px; background:#fff; cursor:pointer;"></select>
+                <label style="font-weight: 700; font-size: 12px; color: #475569; margin-bottom: 4px; display: block;">Balance Column</label>
+                <select id="clWzMapBalance" class="je-input" style="height: 38px; background:#fff; cursor:pointer; border-radius:8px; width:100%;"></select>
               </div>
             </div>
           </div>
 
-          <div style="display: flex; gap: 10px; margin-top: 28px; justify-content: flex-end; border-top: 1px solid var(--slate-100); padding-top: 20px;">
-            <button class="btn btn-secondary" id="clWzBack2" style="padding: 10px 20px;">➔ Back</button>
-            <button class="btn btn-primary" id="clWzImport2" style="padding: 10px 20px;">Import Statement</button>
+          <div style="display: flex; gap: 10px; margin-top: 26px; justify-content: flex-end; border-top: 1px solid var(--slate-100); padding-top: 18px;">
+            <button class="btn btn-secondary" id="clWzBack2" style="padding: 10px 20px; border-radius: 10px; font-weight: 600;">➔ Back</button>
+            <button class="btn btn-primary" id="clWzImport2" style="padding: 10px 22px; border-radius: 10px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37,99,235,0.25);">Import Statement</button>
           </div>
         </div>
       `;
+
+      overlay.querySelector('#clWzCloseBtn2')?.addEventListener('click', close);
+
 
       // Cancel button goes back to first step
       overlay.querySelector('#clWzBack2').addEventListener('click', () => {
@@ -1150,10 +1322,49 @@
           });
         }
 
-        window.KYA_STORE.uploadedStatements = window.KYA_STORE.uploadedStatements || {};
-        window.KYA_STORE.uploadedStatements[bankId] = statementRows;
+        if (statementRows.length > 1) {
+          const firstDate = statementRows[0].date;
+          const lastDate = statementRows[statementRows.length - 1].date;
+          if (firstDate && lastDate && firstDate > lastDate) {
+            // Descending order (newest date to previous date):
+            // Reverse so the last entry becomes the first entry and preserves statement pattern
+            statementRows.reverse();
+          }
+        }
 
-        showToast(`Statement successfully imported with ${statementRows.length} transactions.`, 'success');
+        window.KYA_STORE.uploadedStatements = window.KYA_STORE.uploadedStatements || {};
+        const existingRows = window.KYA_STORE.uploadedStatements[bankId] || [];
+
+        const makeMatchKey = (r) => {
+          const dateStr = String(r.date || '').trim();
+          const descStr = String(r.description || '').trim().toLowerCase();
+          const dr = (parseFloat(r.debit) || 0).toFixed(2);
+          const cr = (parseFloat(r.credit) || 0).toFixed(2);
+          return `${dateStr}|${descStr}|${dr}|${cr}`;
+        };
+
+        const existingKeySet = new Set(existingRows.map(r => makeMatchKey(r)));
+        const newValidRows = [];
+        let duplicateCount = 0;
+
+        statementRows.forEach(row => {
+          const key = makeMatchKey(row);
+          if (existingKeySet.has(key)) {
+            duplicateCount++;
+          } else {
+            existingKeySet.add(key);
+            newValidRows.push(row);
+          }
+        });
+
+        const updatedStatements = [...existingRows, ...newValidRows];
+        window.KYA_STORE.uploadedStatements[bankId] = updatedStatements;
+
+        if (duplicateCount > 0) {
+          showToast(`Statement imported: ${newValidRows.length} new entries added (${duplicateCount} duplicate entries skipped).`, 'info');
+        } else {
+          showToast(`Statement successfully imported with ${newValidRows.length} transactions.`, 'success');
+        }
         overlay.remove();
         renderActiveSubtab();
         triggerAutoBackup();
@@ -1797,7 +2008,8 @@
         return;
       }
 
-      const statementRows = (window.KYA_STORE.uploadedStatements || {})[currentAcc.id] || [];
+      const rawStatementRows = (window.KYA_STORE.uploadedStatements || {})[currentAcc.id] || [];
+      const statementRows = rawStatementRows.map((line, origIdx) => ({ ...line, origIdx }));
 
       let openingBal = parseFloat(selectedLedger.openingBalance) || 0;
       if (statementRows.length > 0) {
@@ -1865,12 +2077,14 @@
       // Calculate stats based on period
       let periodOpeningBal = openingBal;
       let periodClosingBal = openingBal;
+      let periodRows = chronoRows;
       if (chronoRows.length > 0) {
         if (_clStatementFromDate) {
           const beforeRows = chronoRows.filter(r => r.date < _clStatementFromDate);
           if (beforeRows.length > 0) {
             periodOpeningBal = beforeRows[beforeRows.length - 1].computedBalance;
           }
+          periodRows = periodRows.filter(r => r.date >= _clStatementFromDate);
         }
         if (_clStatementToDate) {
           const onOrBeforeRows = chronoRows.filter(r => r.date <= _clStatementToDate);
@@ -1879,32 +2093,45 @@
           } else {
             periodClosingBal = periodOpeningBal;
           }
+          periodRows = periodRows.filter(r => r.date <= _clStatementToDate);
         } else {
           periodClosingBal = chronoRows[chronoRows.length - 1].computedBalance;
         }
       }
+
+      const periodDebitedBal = periodRows.reduce((sum, r) => sum + (parseFloat(r.debit) || 0), 0);
+      const periodCreditedBal = periodRows.reduce((sum, r) => sum + (parseFloat(r.credit) || 0), 0);
+
+      const allDisplayedSelected = displayRows.length > 0 && displayRows.every(r => _clStatementSelectedIndices.has(r.origIdx));
 
       let rowsHtml = '';
       if (displayRows.length > 0) {
         displayRows.forEach((line) => {
           const dbVal = parseFloat(line.debit) || 0;
           const crVal = parseFloat(line.credit) || 0;
+          const isChecked = _clStatementSelectedIndices.has(line.origIdx);
           rowsHtml += `
-            <tr>
-              <td>${formatToDDMMYYYY(line.date)}</td>
+            <tr style="${isChecked ? 'background: #eff6ff;' : ''}">
+              ${_clStatementSelectMode ? `
+                <td style="text-align: center; width: 42px;">
+                  <input type="checkbox" class="cl-stmt-row-cb" data-index="${line.origIdx}" ${isChecked ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb;">
+                </td>
+              ` : ''}
+              <td style="white-space: nowrap;">${formatToDDMMYYYY(line.date)}</td>
               <td>
                 <div style="font-weight: 600; color: var(--slate-800);">${ohEsc(line.description || '—')}</div>
               </td>
-              <td class="num-val" style="color: var(--emerald-600); text-align: right;">${dbVal > 0 ? fmtAmt(dbVal) : '—'}</td>
-              <td class="num-val" style="color: var(--red-600); text-align: right;">${crVal > 0 ? fmtAmt(crVal) : '—'}</td>
+              <td class="num-val" style="color: #dc2626; text-align: right; font-weight: 700;">${dbVal > 0 ? fmtAmt(dbVal) : '—'}</td>
+              <td class="num-val" style="color: #16a34a; text-align: right; font-weight: 700;">${crVal > 0 ? fmtAmt(crVal) : '—'}</td>
               <td class="num-val" style="text-align: right;">${fmtAmt(line.computedBalance)}</td>
             </tr>
           `;
         });
       } else {
+        const colCount = _clStatementSelectMode ? 6 : 5;
         rowsHtml = `
           <tr>
-            <td colspan="5" style="text-align: center; color: var(--slate-400); padding: 48px;">
+            <td colspan="${colCount}" style="text-align: center; color: var(--slate-400); padding: 48px;">
               <div style="font-size: 28px; margin-bottom: 8px;">📄</div>
               <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-700);">No statement entries found</div>
               <div style="font-size: 12px; margin-top: 4px; color: var(--slate-400);">Try adjusting your search query, date filters, or import a new statement.</div>
@@ -1916,12 +2143,122 @@
       // Actions in Blue Card header
       if (actionsArea) {
         actionsArea.innerHTML = `
-          <button class="cl-card-btn" id="btnClUploadStatement" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">
-            Upload Statement
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px; position: relative;">
+            <button class="cl-card-btn" id="btnClUploadStatement" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">
+              Upload Statement
+            </button>
+            <div style="position: relative;">
+              <button class="cl-card-btn" id="btnClStmtMoreMenu" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:16px; border-radius:6px; cursor:pointer; font-weight: 800;" title="More Statement Options" type="button">
+                ⋮
+              </button>
+              <!-- 3-Dot Dropdown Menu -->
+              <div id="clStmtDropdownMenu" style="display: none; position: absolute; right: 0; top: 38px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); width: 210px; z-index: 1000; overflow: hidden; font-family: Inter, sans-serif;">
+                <div style="padding: 6px 0;">
+                  <button type="button" id="clMenuToggleSelectMode" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m9 12 2 2 4-4"/></svg>
+                    ${_clStatementSelectMode ? 'Exit Select Mode' : 'Select Entries'}
+                  </button>
+                  ${statementRows.length > 0 ? `
+                    <button type="button" id="clMenuDeleteSelected" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: ${_clStatementSelectedIndices.size > 0 ? '#dc2626' : '#94a3b8'}; cursor: ${_clStatementSelectedIndices.size > 0 ? 'pointer' : 'default'}; display: flex; align-items: center; gap: 10px;" ${_clStatementSelectedIndices.size === 0 ? 'disabled' : ''}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${_clStatementSelectedIndices.size > 0 ? '#dc2626' : '#94a3b8'}" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      Delete Selected ${_clStatementSelectedIndices.size > 0 ? `(${_clStatementSelectedIndices.size})` : ''}
+                    </button>
+                    <div style="height: 1px; background: #f1f5f9; margin: 4px 0;"></div>
+                    <button type="button" id="clMenuDeleteAll" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #dc2626; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      Clear All Statement
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
         `;
-        document.getElementById('btnClUploadStatement').addEventListener('click', () => {
+        document.getElementById('btnClUploadStatement')?.addEventListener('click', () => {
           showUploadStatementWizard();
+        });
+
+        const moreBtn = document.getElementById('btnClStmtMoreMenu');
+        const dropdownMenu = document.getElementById('clStmtDropdownMenu');
+        if (moreBtn && dropdownMenu) {
+          moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+          });
+          document.addEventListener('click', (e) => {
+            if (!moreBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+              dropdownMenu.style.display = 'none';
+            }
+          });
+        }
+
+        document.getElementById('clMenuToggleSelectMode')?.addEventListener('click', () => {
+          _clStatementSelectMode = !_clStatementSelectMode;
+          if (!_clStatementSelectMode) _clStatementSelectedIndices.clear();
+          if (dropdownMenu) dropdownMenu.style.display = 'none';
+          renderActiveSubtab();
+        });
+
+        document.getElementById('clMenuDeleteSelected')?.addEventListener('click', () => {
+          if (dropdownMenu) dropdownMenu.style.display = 'none';
+          if (_clStatementSelectedIndices.size > 0) {
+            confirmDeleteStatementEntries(Array.from(_clStatementSelectedIndices), currentAcc.id, false);
+          }
+        });
+
+        document.getElementById('clMenuDeleteAll')?.addEventListener('click', () => {
+          if (dropdownMenu) dropdownMenu.style.display = 'none';
+          confirmDeleteStatementEntries(statementRows.map(r => r.origIdx), currentAcc.id, true);
+        });
+      }
+
+      function confirmDeleteStatementEntries(indicesToDelete, bankId, isAll) {
+        if (!indicesToDelete || indicesToDelete.length === 0) return;
+
+        const count = indicesToDelete.length;
+        const msg = isAll
+          ? `Are you sure you want to delete ALL ${count} statement entries for this bank account? This cannot be undone.`
+          : `Are you sure you want to delete ${count} selected statement entry(ies)?`;
+
+        document.getElementById('kyaConfirmOverlay')?.remove();
+        const overlay = document.createElement('div');
+        overlay.className = 'kya-confirm-overlay';
+        overlay.id = 'kyaConfirmOverlay';
+        overlay.innerHTML = `
+          <div class="kya-confirm-card">
+            <div class="kya-confirm-icon" style="background:#fee2e2; color:#dc2626;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </div>
+            <div class="kya-confirm-title">${isAll ? 'Clear Entire Statement' : 'Delete Statement Entries'}</div>
+            <div class="kya-confirm-msg">${ohEsc(msg)}</div>
+            <div class="kya-confirm-btns">
+              <button class="kya-confirm-cancel" id="clConfirmCancel">Cancel</button>
+              <button class="kya-confirm-ok" id="clConfirmOk" style="background:#dc2626;">Delete</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('#clConfirmCancel').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+        overlay.querySelector('#clConfirmOk').addEventListener('click', () => {
+          overlay.remove();
+          const currentStatements = (window.KYA_STORE.uploadedStatements || {})[bankId] || [];
+          const toDeleteSet = new Set(indicesToDelete);
+          const updated = currentStatements.filter((_, idx) => !toDeleteSet.has(idx));
+          
+          window.KYA_STORE.uploadedStatements = window.KYA_STORE.uploadedStatements || {};
+          window.KYA_STORE.uploadedStatements[bankId] = updated;
+
+          _clStatementSelectedIndices.clear();
+          if (updated.length === 0) {
+            _clStatementSelectMode = false;
+          }
+
+          showToast(isAll ? 'Bank statement cleared.' : `Deleted ${count} statement entry(ies).`, 'success');
+          renderActiveSubtab();
+          triggerAutoBackup();
         });
       }
 
@@ -1929,17 +2266,62 @@
       const existingContainer = document.getElementById('clStmtContainer');
       if (existingContainer) {
         // Update stats
-        document.getElementById('clStmtOpeningBalVal').textContent = fmtAmt(periodOpeningBal);
-        const changeVal = document.getElementById('clStmtNetChangeVal');
-        const netChange = periodClosingBal - periodOpeningBal;
-        changeVal.textContent = fmtAmt(netChange);
-        changeVal.style.color = netChange >= 0 ? 'var(--emerald-600)' : 'var(--red-600)';
-        document.getElementById('clStmtClosingBalVal').textContent = fmtAmt(periodClosingBal);
+        if (document.getElementById('clStmtOpeningBalVal')) document.getElementById('clStmtOpeningBalVal').innerHTML = fmtAmt(periodOpeningBal);
+        if (document.getElementById('clStmtDebitedBalVal')) document.getElementById('clStmtDebitedBalVal').innerHTML = fmtAmt(periodDebitedBal);
+        if (document.getElementById('clStmtCreditedBalVal')) document.getElementById('clStmtCreditedBalVal').innerHTML = fmtAmt(periodCreditedBal);
+        if (document.getElementById('clStmtClosingBalVal')) document.getElementById('clStmtClosingBalVal').innerHTML = fmtAmt(periodClosingBal);
 
         // Update entries count
         document.getElementById('clStmtShowingCount').textContent = `Showing ${displayRows.length} of ${statementRows.length} entries`;
 
-        // Update table body
+        // Update table header & body
+        const tableHead = existingContainer.querySelector('thead tr');
+        if (tableHead) {
+          tableHead.innerHTML = `
+            ${_clStatementSelectMode ? `
+              <th style="width: 42px; text-align: center;">
+                <input type="checkbox" id="clStmtSelectAllCb" ${allDisplayedSelected ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb;">
+              </th>
+            ` : ''}
+            <th style="width: 110px;">Date</th>
+            <th>Description</th>
+            <th style="text-align: right; width: 120px;">Debit</th>
+            <th style="text-align: right; width: 120px;">Credit</th>
+            <th style="text-align: right; width: 130px;">Balance</th>
+          `;
+        }
+
+        // Render batch bar container if present or update
+        let batchBar = document.getElementById('clStmtBatchBar');
+        if (_clStatementSelectMode) {
+          if (!batchBar) {
+            batchBar = document.createElement('div');
+            batchBar.id = 'clStmtBatchBar';
+            existingContainer.insertBefore(batchBar, document.querySelector('.recon-stats'));
+          }
+          batchBar.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 10px 16px; margin-bottom: 20px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 13px; font-weight: 700; color: #1e40af;">
+                  📌 ${_clStatementSelectedIndices.size} of ${displayRows.length} entries selected
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                ${_clStatementSelectedIndices.size > 0 ? `
+                  <button id="clBtnDeleteSelectedBatch" class="pt-del-btn" style="height: 34px; padding: 0 16px; font-size: 12.5px;" type="button">
+                    Delete Selected (${_clStatementSelectedIndices.size})
+                  </button>
+                ` : ''}
+                <button id="clBtnExitSelectMode" class="btn btn-secondary" style="height: 34px; padding: 0 14px; font-size: 12.5px; font-weight: 600; border-radius: 8px;" type="button">
+                  Done
+                </button>
+              </div>
+            </div>
+          `;
+        } else if (batchBar) {
+          batchBar.remove();
+        }
+
         document.getElementById('clStmtTableBody').innerHTML = rowsHtml;
       } else {
         // Render the full structure
@@ -1991,17 +2373,41 @@
               </div>
             </div>
 
+            ${_clStatementSelectMode ? `
+              <div id="clStmtBatchBar">
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 10px 16px; margin-bottom: 20px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 13px; font-weight: 700; color: #1e40af;">
+                      📌 ${_clStatementSelectedIndices.size} of ${displayRows.length} entries selected
+                    </span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    ${_clStatementSelectedIndices.size > 0 ? `
+                      <button id="clBtnDeleteSelectedBatch" class="pt-del-btn" style="height: 34px; padding: 0 16px; font-size: 12.5px;" type="button">
+                        Delete Selected (${_clStatementSelectedIndices.size})
+                      </button>
+                    ` : ''}
+                    <button id="clBtnExitSelectMode" class="btn btn-secondary" style="height: 34px; padding: 0 14px; font-size: 12.5px; font-weight: 600; border-radius: 8px;" type="button">
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+
             <!-- Stats row -->
-            <div class="recon-stats" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px; padding: 12px 16px;">
+            <div class="recon-stats" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; padding: 12px 16px;">
               <div class="recon-stat-card">
                 <span class="recon-stat-label">Opening Balance</span>
                 <span class="recon-stat-val" id="clStmtOpeningBalVal">${fmtAmt(periodOpeningBal)}</span>
               </div>
               <div class="recon-stat-card">
-                <span class="recon-stat-label">Net Period Change</span>
-                <span class="recon-stat-val" id="clStmtNetChangeVal" style="color: ${periodClosingBal >= periodOpeningBal ? 'var(--emerald-600)' : 'var(--red-600)'};">
-                  ${fmtAmt(periodClosingBal - periodOpeningBal)}
-                </span>
+                <span class="recon-stat-label">Debited Balance</span>
+                <span class="recon-stat-val" id="clStmtDebitedBalVal" style="color: #dc2626;">${fmtAmt(periodDebitedBal)}</span>
+              </div>
+              <div class="recon-stat-card">
+                <span class="recon-stat-label">Credited Balance</span>
+                <span class="recon-stat-val" id="clStmtCreditedBalVal" style="color: #16a34a;">${fmtAmt(periodCreditedBal)}</span>
               </div>
               <div class="recon-stat-card">
                 <span class="recon-stat-label">Closing Balance</span>
@@ -2013,6 +2419,11 @@
               <table class="cl-table">
                 <thead>
                   <tr>
+                    ${_clStatementSelectMode ? `
+                      <th style="width: 42px; text-align: center;">
+                        <input type="checkbox" id="clStmtSelectAllCb" ${allDisplayedSelected ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb;">
+                      </th>
+                    ` : ''}
                     <th style="width: 110px;">Date</th>
                     <th>Description</th>
                     <th style="text-align: right; width: 120px;">Debit</th>
@@ -2061,11 +2472,47 @@
           _clStatementToDate = '';
           _clStatementSearchQuery = '';
           _clStatementSortOrder = 'oldest';
+          _clStatementSelectMode = false;
+          _clStatementSelectedIndices.clear();
           // Clear target so that it full-renders and resets the HTML state
           target.innerHTML = '';
           renderActiveSubtab();
         });
       }
+
+      // Wire row checkboxes & action listeners
+      document.querySelectorAll('.cl-stmt-row-cb').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+          const idx = Number(e.target.dataset.index);
+          if (e.target.checked) {
+            _clStatementSelectedIndices.add(idx);
+          } else {
+            _clStatementSelectedIndices.delete(idx);
+          }
+          renderActiveSubtab();
+        });
+      });
+
+      document.getElementById('clStmtSelectAllCb')?.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          displayRows.forEach(r => _clStatementSelectedIndices.add(r.origIdx));
+        } else {
+          displayRows.forEach(r => _clStatementSelectedIndices.delete(r.origIdx));
+        }
+        renderActiveSubtab();
+      });
+
+      document.getElementById('clBtnDeleteSelectedBatch')?.addEventListener('click', () => {
+        if (_clStatementSelectedIndices.size > 0) {
+          confirmDeleteStatementEntries(Array.from(_clStatementSelectedIndices), currentAcc.id, false);
+        }
+      });
+
+      document.getElementById('clBtnExitSelectMode')?.addEventListener('click', () => {
+        _clStatementSelectMode = false;
+        _clStatementSelectedIndices.clear();
+        renderActiveSubtab();
+      });
 
       return;
     }

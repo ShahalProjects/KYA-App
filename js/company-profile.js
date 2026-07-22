@@ -321,31 +321,66 @@
             <div id="coSubpanel-vault" class="co-subpanel-content" style="display:none;">
               <div style="display:flex;flex-direction:column;gap:20px;">
                 <!-- Upload File Box -->
-                <div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:20px;background:#fafbfc;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:end;">
-                  <div>
-                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:6px;">Document Title</label>
-                    <input id="coDocTitle" placeholder="e.g. MOA Document" style="width:100%;height:38px;border:1.5px solid #cbd5e1;border-radius:8px;padding:0 10px;font-size:13px;outline:none;">
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:6px;">Category</label>
-                    <select id="coDocCategory" style="width:100%;height:38px;border:1.5px solid #cbd5e1;border-radius:8px;padding:0 10px;font-size:13px;color:#334155;outline:none;background:#fff;">
-                      <option value="Incorporation">Incorporation / Registration</option>
-                      <option value="PAN_GST">PAN Card & GST Certificates</option>
-                      <option value="Deed_MOA">MOA/AOA / Partnership Deed</option>
-                      <option value="Banking">Cancelled Cheque / Bank Docs</option>
-                      <option value="Property">Rental / Lease Agreements</option>
-                      <option value="Insurance">Insurance Certificates</option>
-                      <option value="Finance">Financials & Audited Reports</option>
-                      <option value="Resolutions">Board Resolutions</option>
-                      <option value="Others">Others</option>
-                    </select>
-                  </div>
-                  <div style="grid-column: span 2; display:flex; gap:16px; align-items:center; margin-top:8px;">
-                    <div style="flex-grow:1;">
-                      <label style="display:block;font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:6px;">File Attachment</label>
-                      <input type="file" id="coDocFileInput" style="font-size:12.5px;color:#475569;">
+                <div style="border:1.5px solid #e2e8f0;border-radius:16px;padding:24px;background:#ffffff;box-shadow:0 4px 20px rgba(0,0,0,0.03);display:flex;flex-direction:column;gap:18px;">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div>
+                      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:6px;">Document Title *</label>
+                      <input id="coDocTitle" placeholder="e.g. MOA Document" style="width:100%;height:40px;border:1.5px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:13.5px;outline:none;background:#fff;box-sizing:border-box;">
                     </div>
-                    <button type="button" id="coDocUploadBtn" style="height:38px;padding:0 20px;border:none;border-radius:8px;background:#0284c7;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">
+                    <div>
+                      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:6px;">Category</label>
+                      <select id="coDocCategory" style="width:100%;height:40px;border:1.5px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:13.5px;color:#334155;outline:none;background:#fff;box-sizing:border-box;">
+                        <option value="Incorporation">Incorporation / Registration</option>
+                        <option value="PAN_GST">PAN Card & GST Certificates</option>
+                        <option value="Deed_MOA">MOA/AOA / Partnership Deed</option>
+                        <option value="Banking">Cancelled Cheque / Bank Docs</option>
+                        <option value="Property">Rental / Lease Agreements</option>
+                        <option value="Insurance">Insurance Certificates</option>
+                        <option value="Finance">Financials & Audited Reports</option>
+                        <option value="Resolutions">Board Resolutions</option>
+                        <option value="Others">Others</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:8px;">File Attachment *</label>
+                    
+                    <!-- Hidden file input -->
+                    <input type="file" id="coDocFileInput" style="display:none;">
+
+                    <!-- Modern Dropzone -->
+                    <div id="coDocDropzone" class="cl-dropzone" style="padding: 22px 16px;">
+                      <div class="cl-dropzone-icon-bg" style="width:46px;height:46px;margin-bottom:10px;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      </div>
+                      <div class="cl-dropzone-title" style="font-size:13.5px;">Click to upload or drag & drop document</div>
+                      <div class="cl-dropzone-subtitle" style="font-size:11.5px;margin-bottom:10px;">PDF, DOCX, PNG, JPG, or XLSX files</div>
+                      <div class="cl-dropzone-tags">
+                        <span class="cl-dropzone-tag">PDF</span>
+                        <span class="cl-dropzone-tag">DOCX</span>
+                        <span class="cl-dropzone-tag">IMAGES</span>
+                      </div>
+                    </div>
+
+                    <!-- Selected File Preview Card -->
+                    <div id="coDocSelectedCard" class="cl-file-card" style="display:none;">
+                      <div id="coDocFileIcon" class="cl-file-icon excel">DOC</div>
+                      <div class="cl-file-info">
+                        <div id="coDocFileName" class="cl-file-name">document.pdf</div>
+                        <div class="cl-file-meta">
+                          <span id="coDocFileSize">0 KB</span>
+                          <span>•</span>
+                          <span class="cl-file-badge success">✓ File Selected</span>
+                        </div>
+                      </div>
+                      <button id="coDocChangeFileBtn" class="cl-file-remove-btn" type="button">Change</button>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;justify-content:flex-end;">
+                    <button type="button" id="coDocUploadBtn" style="height:40px;padding:0 24px;border:none;border-radius:10px;background:linear-gradient(135deg, #0284c7, #0369a1);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(2,132,199,0.25);display:flex;align-items:center;gap:6px;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                       Upload to Vault
                     </button>
                   </div>
@@ -672,6 +707,97 @@
 
     wrap.querySelector('#coDocSearch').addEventListener('input', renderDocumentsList);
 
+    // Wire up Document Vault Drag & Drop Dropzone
+    const docDropzone = wrap.querySelector('#coDocDropzone');
+    const docFileInput = wrap.querySelector('#coDocFileInput');
+    const docSelectedCard = wrap.querySelector('#coDocSelectedCard');
+    const docFileNameEl = wrap.querySelector('#coDocFileName');
+    const docFileSizeEl = wrap.querySelector('#coDocFileSize');
+    const docFileIconEl = wrap.querySelector('#coDocFileIcon');
+    const docChangeFileBtn = wrap.querySelector('#coDocChangeFileBtn');
+
+    function formatDocBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function updateDocSelectedUI(file) {
+      if (!file) {
+        if (docDropzone) docDropzone.style.display = 'flex';
+        if (docSelectedCard) docSelectedCard.style.display = 'none';
+        return;
+      }
+      const name = file.name;
+      const ext = name.split('.').pop().toLowerCase();
+      
+      if (docFileIconEl) {
+        docFileIconEl.textContent = ext.substring(0, 4).toUpperCase();
+        if (ext === 'pdf') {
+          docFileIconEl.className = 'cl-file-icon excel';
+          docFileIconEl.style.background = '#fee2e2';
+          docFileIconEl.style.color = '#b91c1c';
+          docFileIconEl.style.borderColor = '#fca5a5';
+        } else if (['jpg', 'jpeg', 'png', 'svg', 'webp'].includes(ext)) {
+          docFileIconEl.className = 'cl-file-icon csv';
+          docFileIconEl.style.background = '';
+          docFileIconEl.style.color = '';
+          docFileIconEl.style.borderColor = '';
+        } else {
+          docFileIconEl.className = 'cl-file-icon excel';
+          docFileIconEl.style.background = '';
+          docFileIconEl.style.color = '';
+          docFileIconEl.style.borderColor = '';
+        }
+      }
+      
+      if (docFileNameEl) docFileNameEl.textContent = name;
+      if (docFileSizeEl) docFileSizeEl.textContent = formatDocBytes(file.size);
+      
+      if (docDropzone) docDropzone.style.display = 'none';
+      if (docSelectedCard) docSelectedCard.style.display = 'flex';
+    }
+
+    if (docDropzone && docFileInput) {
+      docDropzone.addEventListener('click', () => docFileInput.click());
+      if (docChangeFileBtn) docChangeFileBtn.addEventListener('click', () => docFileInput.click());
+
+      docFileInput.addEventListener('change', () => {
+        if (docFileInput.files && docFileInput.files[0]) {
+          updateDocSelectedUI(docFileInput.files[0]);
+        }
+      });
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        docDropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          docDropzone.classList.add('dragover');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        docDropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          docDropzone.classList.remove('dragover');
+        }, false);
+      });
+
+      docDropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt?.files;
+        if (files && files.length > 0) {
+          try {
+            docFileInput.files = files;
+          } catch (err) {}
+          updateDocSelectedUI(files[0]);
+        }
+      });
+    }
+
     wrap.querySelector('#coDocUploadBtn').addEventListener('click', () => {
       const title = wrap.querySelector('#coDocTitle').value.trim();
       const cat = wrap.querySelector('#coDocCategory').value;
@@ -695,6 +821,7 @@
         
         wrap.querySelector('#coDocTitle').value = '';
         fileInput.value = '';
+        updateDocSelectedUI(null);
         renderDocumentsList();
         saveCompanyDetails(coData);
         showToast('Document uploaded to vault.', 'success');

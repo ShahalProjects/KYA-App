@@ -3833,3 +3833,279 @@
     .vd-status-tab-btn.active svg {
       stroke: var(--white) !important;
     }
+
+/* ── Modern Bank Statement Upload Wizard Styles ── */
+.cl-wizard-container {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 28px;
+  width: 92%;
+  max-width: 520px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  position: relative;
+  box-sizing: border-box;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: clModalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cl-wizard-container-lg {
+  max-width: 620px;
+}
+
+@keyframes clModalFadeIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cl-wizard-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.cl-wizard-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 22px 0;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.cl-wizard-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.cl-wizard-step-item.active {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.cl-wizard-step-item.completed {
+  color: #059669;
+}
+
+.cl-wizard-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cl-wizard-step-item.active .cl-wizard-step-num {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.cl-wizard-step-item.completed .cl-wizard-step-num {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.cl-wizard-step-divider {
+  flex: 1;
+  height: 2px;
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+
+.cl-wizard-step-divider.active {
+  background: #2563eb;
+}
+
+/* Dropzone Styling */
+.cl-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.cl-dropzone:hover {
+  border-color: #3b82f6;
+  background: #f0f9ff;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+}
+
+.cl-dropzone.dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  transform: scale(1.01);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+}
+
+.cl-dropzone-icon-bg {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  transition: transform 0.2s ease;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.12);
+}
+
+.cl-dropzone:hover .cl-dropzone-icon-bg {
+  transform: translateY(-2px) scale(1.05);
+}
+
+.cl-dropzone-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.cl-dropzone-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 14px;
+}
+
+.cl-dropzone-tags {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.cl-dropzone-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* File Selected Card */
+.cl-file-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cl-file-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.cl-file-icon.csv {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.cl-file-icon.excel {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.cl-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cl-file-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-file-meta {
+  font-size: 11.5px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.cl-file-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cl-file-badge.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.cl-file-remove-btn {
+  background: #f1f5f9;
+  border: none;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cl-file-remove-btn:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
