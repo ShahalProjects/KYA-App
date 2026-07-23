@@ -533,8 +533,8 @@
           <td style="white-space: nowrap;">${formattedDate}</td>
           <td>${ohEsc(tr.particulars)}</td>
           <td style="white-space: nowrap;"><span class="pt-vbadge" onclick="viewVoucherFromStatement(${tr.id})" title="Click to view details">${ohEsc(tr.voucherNo)}</span></td>
-          <td class="num-col">${drText}</td>
-          <td class="num-col">${crText}</td>
+          <td class="num-col" style="color: var(--red-600);">${drText}</td>
+          <td class="num-col" style="color: var(--emerald-600);">${crText}</td>
         </tr>
       `;
     });
