@@ -1,3 +1,14 @@
+  // ══════════════════════════════════════════════════════════════════
+  //  SETTINGS & VAULT — Shared state (moved from onehub.js during split)
+  // ══════════════════════════════════════════════════════════════════
+  let _settingsActiveTab = ''; // empty/welcome state by default
+  let _vaultWired = false;
+  let _activeFolderHandle = null;
+  let _activeFolderPermission = false;
+
+  const KYA_DB_NAME = 'KyaFolderStorage';
+  const KYA_STORE_NAME = 'handles';
+
   function getIndexedDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(KYA_DB_NAME, 1);
@@ -107,4 +118,7 @@
   let _ledgerAlterAliases = [];
   let _ledgerSearchQuery = '';
   let _ledgerStatementId = null;
-
+  let _customerSearchQuery = '';
+  let _supplierSearchQuery = '';
+  let _customerStatementId = null;
+  let _supplierStatementId = null;

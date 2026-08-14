@@ -36,7 +36,7 @@
       if (isRet) {
         badgeHtml = `<span class="badge" style="background: var(--red-50); color: var(--red-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Reversal</span>`;
       } else if (isOrd) {
-        badgeHtml = `<span class="badge" style="background: var(--emerald-50); color: var(--emerald-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Order</span>`;
+        badgeHtml = `<span class="badge" style="background: var(--emerald-50); color: var(--emerald-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Pre Invoice</span>`;
       } else {
         badgeHtml = `<span class="badge" style="background: var(--blue-50); color: var(--blue-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Invoice</span>`;
       }
@@ -125,14 +125,14 @@
     const isRet = !!invoice.isReturn;
     const isOrd = !!invoice.isOrder;
     
-    let titleText = 'Delete Posted Invoice?';
-    let messageText = 'Are you sure you want to delete this sales invoice? This will also delete the corresponding journal entry and cannot be undone.';
+    let titleText = 'Delete Invoice?';
+    let messageText = 'Are you sure you want to delete this sales invoice? This action cannot be undone.';
     if (isRet) {
-      titleText = 'Delete Posted Reversal?';
-      messageText = 'Are you sure you want to delete this sales reversal? This will also delete the corresponding journal entry and cannot be undone.';
+      titleText = 'Delete Reversal?';
+      messageText = 'Are you sure you want to delete this sales reversal? This action cannot be undone.';
     } else if (isOrd) {
-      titleText = 'Delete Sales Order?';
-      messageText = 'Are you sure you want to delete this sales order? This will also delete the corresponding journal entry (if any) and cannot be undone.';
+      titleText = 'Delete Sales Pre Invoice?';
+      messageText = 'Are you sure you want to delete this sales pre-invoice? This action cannot be undone.';
     }
     
     showKyaConfirm({
@@ -144,20 +144,12 @@
         list.splice(index, 1);
         window.KYA_STORE.salesVouchers = list;
         
-        if (invoice.journalEntryId) {
-          postedEntries = postedEntries.filter(e => e.id !== invoice.journalEntryId);
-        }
-        if (invoice.refundJournalEntryIds) {
-          postedEntries = postedEntries.filter(e => !invoice.refundJournalEntryIds.includes(e.id));
-        }
-        
         let successMsg = `Invoice "${invoice.invoiceNo}" deleted.`;
         if (isRet) successMsg = `Sales Reversal "${invoice.invoiceNo}" deleted.`;
-        else if (isOrd) successMsg = `Sales Order "${invoice.invoiceNo}" deleted.`;
+        else if (isOrd) successMsg = `Sales Pre Invoice "${invoice.invoiceNo}" deleted.`;
         
         showToast(successMsg, 'success');
         renderSalesPostedPanel();
-        refreshAllReports();
         triggerAutoBackup();
       }
     });
@@ -168,7 +160,6 @@
     const inv = list.find(v => v.id === invoiceId);
     if (!inv) return;
     
-    // Calculate values
     let orderAdvanceAmount = 0;
     if (inv.orderNo) {
       const linkedOrder = list.find(v => v.isOrder && v.invoiceNo.toLowerCase() === inv.orderNo.toLowerCase());
@@ -189,7 +180,6 @@
       return;
     }
     
-    // Create Modal HTML
     const overlay = document.createElement('div');
     overlay.className = 'coa-modal-overlay';
     overlay.id = 'refundModalOverlay';
@@ -266,53 +256,7 @@
         return;
       }
       
-      // Post the Refund Journal Entry
-      const payAccount = coaLedgers.find(l => l.id == refAccId);
-      const payAccountName = payAccount ? payAccount.name : 'Cash Account';
-      
-      const refundLedgerId = getOrCreateSystemLedger('Refund Payable', 'sg-ocl');
-      const refundLedgerName = coaLedgers.find(l => l.id == refundLedgerId).name;
-      
-      const journalRows = [
-        {
-          id: 1,
-          type: 'By',
-          particular: refundLedgerName,
-          debit: refAmt.toFixed(2),
-          credit: ''
-        },
-        {
-          id: 2,
-          type: 'To',
-          particular: payAccountName,
-          debit: '',
-          credit: refAmt.toFixed(2)
-        }
-      ];
-      
-      const entryId = Date.now();
-      const customer = coaLedgers.find(l => l.id == inv.customerId);
-      const customerName = customer ? customer.name : 'Unknown Customer';
-      
-      const entry = {
-        id:             entryId,
-        date:           refDate,
-        voucherNo:      `RF-${inv.invoiceNo}`,
-        preparedBy:     'Sales Module',
-        departmentId:   '',
-        isBudget:       false,
-        firstParticular: refundLedgerName,
-        amount:         fmtNum(refAmt),
-        allRows:        journalRows,
-        narration:      `Refund of overpaid advance of ₹${fmtNum(refAmt)} processed against Sales Invoice ${inv.invoiceNo} for customer ${customerName}. paid via ${payAccountName}.`
-      };
-      
-      postedEntries.unshift(entry);
-      
-      // Update Sales Invoice object
       inv.refundedAmount = (inv.refundedAmount || 0) + refAmt;
-      inv.refundJournalEntryIds = inv.refundJournalEntryIds || [];
-      inv.refundJournalEntryIds.push(entryId);
       
       if (inv.refundedAmount >= excessAmount) {
         inv.paymentStatus = 'Full Refund';
@@ -320,7 +264,6 @@
         inv.paymentStatus = 'Partial Refund';
       }
       
-      // Save changes
       const idx = window.KYA_STORE.salesVouchers.findIndex(v => v.id === inv.id);
       if (idx > -1) {
         window.KYA_STORE.salesVouchers[idx] = inv;
@@ -330,7 +273,6 @@
       showToast(`Refund of ₹${fmtNum(refAmt)} processed successfully.`, 'success');
       
       renderSalesPostedPanel();
-      refreshAllReports();
       triggerAutoBackup();
     });
   }
@@ -360,6 +302,7 @@
         const execEmp = ohEmployees.find(e => e.id == draft.salesExecutiveId);
         if (execEmp) execName = execEmp.name;
       }
+      const supplyType = draft.salesSupplyType || 'Intra-State (CGST + SGST)';
       const isRet = !!draft.isReturn;
       const isOrd = !!draft.isOrder;
       
@@ -367,7 +310,7 @@
       if (isRet) {
         badgeHtml = `<span class="badge" style="background: var(--red-50); color: var(--red-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Reversal</span>`;
       } else if (isOrd) {
-        badgeHtml = `<span class="badge" style="background: var(--emerald-50); color: var(--emerald-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Order</span>`;
+        badgeHtml = `<span class="badge" style="background: var(--emerald-50); color: var(--emerald-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Pre Invoice</span>`;
       } else {
         badgeHtml = `<span class="badge" style="background: var(--blue-50); color: var(--blue-700); font-weight: 600; padding: 4px 8px; border-radius: 6px; font-size: 11px; margin-right: 4px;">Invoice</span>`;
       }
@@ -443,4 +386,3 @@
       }
     });
   }
-

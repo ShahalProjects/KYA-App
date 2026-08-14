@@ -1,8 +1,6 @@
-  // ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
   //  SALES POSTING — Load/save drafts, post invoice, post to journal
   //  (Split from sales.js for maintainability)
-  // ══════════════════════════════════════════════════════════════════
-
   function loadSalesInvoice(inv, isDraft) {
     openTab('sales_voucher');
     
@@ -77,13 +75,13 @@
       } else {
         rateSelect.value = 'custom';
         if (customInput) customInput.value = rateVal;
-        if (customWrap) customWrap.style.display = 'block';
+        if (customWrap) customWrap.style.display = 'flex';
       }
     }
     if (label) {
       label.textContent = (rateVal % 1 === 0 ? rateVal.toFixed(0) : (rateVal * 10 % 1 === 0 ? rateVal.toFixed(1) : rateVal.toFixed(2))) + '%';
     }
-    if (amt) amt.value = inv.tdsTcsAmount !== undefined ? inv.tdsTcsAmount : '';
+    if (amt) amt.value = inv.tdsTcsAmount !== undefined ? (inv.tdsTcsAmount === 0 ? '' : inv.tdsTcsAmount) : '';
     
     if (tdsTcsMode === 'TDS') {
       const tdsBtn = document.getElementById('salesTdsTcsTds');
@@ -97,7 +95,7 @@
     }
     
     const adjEl = document.getElementById('salesAdjustments');
-    if (adjEl) adjEl.value = inv.adjustments !== undefined ? inv.adjustments : '';
+    if (adjEl) adjEl.value = inv.adjustments !== undefined ? (inv.adjustments === 0 ? '' : inv.adjustments) : '';
     
     const payStatus = inv.paymentStatus || 'Not Paid';
     if (payStatus === 'Full Payment' || payStatus === 'Full Refund') {
@@ -151,6 +149,7 @@
     renderSalesRows();
     updateSalesReturnLockState();
     recalculateSalesTotals();
+    updateSalesDocUI(inv.uploadedDoc || null);
     
     window._editingSalesInvoice = { id: inv.id, isDraft: isDraft };
   }
@@ -269,9 +268,9 @@
       excessAmount: excessAmount > 0 ? excessAmount : undefined,
       refundedAmount: excessAmount > 0 ? refundedAmount : undefined,
       rows: JSON.parse(JSON.stringify(salesRows)),
+      uploadedDoc: window._salesUploadedDoc || null,
       updatedAt: Date.now()
     };
-    
     window.KYA_STORE.salesVouchersDrafts = window.KYA_STORE.salesVouchersDrafts || [];
     
     const existingIndex = window.KYA_STORE.salesVouchersDrafts.findIndex(d => d.id === draftData.id);
@@ -285,7 +284,7 @@
     if (currentSalesVoucherSubtype === 'Return') {
       draftToastMsg = 'Sales Reversal Draft saved successfully.';
     } else if (currentSalesVoucherSubtype === 'Order') {
-      draftToastMsg = 'Sales Order Draft saved successfully.';
+      draftToastMsg = 'Sales Pre Invoice Draft saved successfully.';
     }
     showToast(draftToastMsg, 'success');
     window._editingSalesInvoice = null;
@@ -315,7 +314,7 @@
     if (!invoiceNo) {
       let typeLabel = 'Invoice';
       if (currentSalesVoucherSubtype === 'Return') typeLabel = 'Reversal';
-      else if (currentSalesVoucherSubtype === 'Order') typeLabel = 'Order';
+      else if (currentSalesVoucherSubtype === 'Order') typeLabel = 'Pre Invoice';
       showToast(`${typeLabel} number is required.`, 'warning');
       return;
     }
@@ -340,7 +339,7 @@
     if (dup) {
       let typeLabel = 'Invoice';
       if (currentSalesVoucherSubtype === 'Return') typeLabel = 'Reversal';
-      else if (currentSalesVoucherSubtype === 'Order') typeLabel = 'Order';
+      else if (currentSalesVoucherSubtype === 'Order') typeLabel = 'Pre Invoice';
       showToast(`${typeLabel} No. "${invoiceNo}" has already been posted. Please use a unique number.`, 'danger');
       return;
     }
@@ -535,93 +534,6 @@
     }
 
     const isEditPosted = window._editingSalesInvoice && !window._editingSalesInvoice.isDraft;
-    const existingJournalEntryId = isEditPosted ? (window.KYA_STORE.salesVouchers.find(v => v.id === window._editingSalesInvoice.id)?.journalEntryId) : null;
-
-    if (isEditPosted) {
-      const oldInv = window.KYA_STORE.salesVouchers.find(v => v.id === window._editingSalesInvoice.id);
-      if (oldInv && oldInv.refundJournalEntryIds) {
-        postedEntries = postedEntries.filter(e => !oldInv.refundJournalEntryIds.includes(e.id));
-      }
-    }
-
-    const isOrderWithPayment = currentSalesVoucherSubtype === 'Order' && (paymentStatus === 'Full Payment' || paymentStatus === 'Partial Payment') && paymentAmount > 0;
-
-    const journalEntryId = (currentSalesVoucherSubtype === 'Order' && !isOrderWithPayment) ? null : postSalesVoucherToJournal({
-      invoiceNo,
-      isReturn: currentSalesVoucherSubtype === 'Return',
-      isOrder: currentSalesVoucherSubtype === 'Order',
-      customerId,
-      salesExecutiveId,
-      salesSupplyType,
-      date,
-      dueDate,
-      orderNo,
-      notes,
-      tdsTcsMode,
-      tdsTcsRate,
-      tdsTcsAmount,
-      adjustments,
-      subTotal,
-      total,
-      paymentStatus,
-      paymentAccountId,
-      paymentAmount,
-      rows: salesRows,
-      type: currentSalesType,
-      journalEntryId: existingJournalEntryId
-    });
-
-    if (isEditPosted && existingJournalEntryId && !journalEntryId) {
-      postedEntries = postedEntries.filter(e => e.id !== existingJournalEntryId);
-    }
-
-    if (excessAmount > 0 && (paymentStatus === 'Full Refund' || paymentStatus === 'Partial Refund')) {
-      const refundAmt = refundedAmount;
-      if (refundAmt > 0) {
-        const refundEntryId = Date.now() + 1;
-        const payAccount = coaLedgers.find(l => l.id == paymentAccountId);
-        const payAccountName = payAccount ? payAccount.name : 'Cash Account';
-        
-        const refundLedgerId = getOrCreateSystemLedger('Refund Payable', 'sg-ocl');
-        const refundLedgerName = coaLedgers.find(l => l.id == refundLedgerId).name;
-        
-        const refundRows = [
-          {
-            id: 1,
-            type: 'By',
-            particular: refundLedgerName,
-            debit: refundAmt.toFixed(2),
-            credit: ''
-          },
-          {
-            id: 2,
-            type: 'To',
-            particular: payAccountName,
-            debit: '',
-            credit: refundAmt.toFixed(2)
-          }
-        ];
-        
-        const customer = coaLedgers.find(l => l.id == customerId);
-        const customerName = customer ? customer.name : 'Unknown Customer';
-        
-        const refundEntry = {
-          id:             refundEntryId,
-          date:           date,
-          voucherNo:      `RF-${invoiceNo}`,
-          preparedBy:     'Sales Module',
-          departmentId:   '',
-          isBudget:       false,
-          firstParticular: refundLedgerName,
-          amount:         fmtNum(refundAmt),
-          allRows:        refundRows,
-          narration:      `Refund of overpaid advance of ₹${fmtNum(refundAmt)} processed against Sales Invoice ${invoiceNo} for customer ${customerName}. paid via ${payAccountName}.`
-        };
-        
-        postedEntries.unshift(refundEntry);
-        refundJournalEntryIds = [refundEntryId];
-      }
-    }
     
     const invoiceData = {
       id: isEditPosted ? window._editingSalesInvoice.id : Date.now(),
@@ -650,7 +562,8 @@
       refundedAmount: excessAmount > 0 ? refundedAmount : undefined,
       refundJournalEntryIds: excessAmount > 0 ? refundJournalEntryIds : undefined,
       rows: JSON.parse(JSON.stringify(salesRows)),
-      journalEntryId,
+      uploadedDoc: window._salesUploadedDoc || null,
+      journalEntryId: '', 
       postedAt: isEditPosted ? (window.KYA_STORE.salesVouchers.find(v => v.id === window._editingSalesInvoice.id)?.postedAt || Date.now()) : Date.now()
     };
     
@@ -683,7 +596,7 @@
     if (currentSalesVoucherSubtype === 'Return') {
       successMsg = `Sales Reversal "${invoiceNo}" posted successfully.`;
     } else if (currentSalesVoucherSubtype === 'Order') {
-      successMsg = `Sales Order "${invoiceNo}" placed successfully.`;
+      successMsg = `Sales Pre Invoice "${invoiceNo}" saved successfully.`;
     }
     showToast(successMsg, 'success');
     window._editingSalesInvoice = null;
@@ -694,135 +607,6 @@
   }
 
   function postSalesVoucherToJournal(invoice) {
-    const customer = coaLedgers.find(l => l.id == invoice.customerId);
-    const customerName = customer ? customer.name : 'Unknown Customer';
-    
-    const journalRows = [];
-    
-    let paidAmount = 0;
-    let orderAdvanceAmount = 0;
-    const isRet = !!invoice.isReturn;
-    const isOrd = !!invoice.isOrder;
-    
-    let origPaidAmt = invoice.total;
-    let isReturnAgainstOrder = false;
-    if (isRet && invoice.returnAgainstInvoice) {
-      const origDoc = (window.KYA_STORE.salesVouchers || []).find(v => v.invoiceNo.toLowerCase() === invoice.returnAgainstInvoice.toLowerCase() && !v.isReturn);
-      if (origDoc) {
-        if (origDoc.isOrder) {
-          isReturnAgainstOrder = true;
-        }
-        if (origDoc.paymentStatus === 'Full Payment') {
-          origPaidAmt = origDoc.total;
-        } else if (origDoc.paymentStatus === 'Partial Payment') {
-          origPaidAmt = origDoc.paymentAmount || 0;
-        } else if (origDoc.paymentStatus === 'Not Paid' || origDoc.paymentStatus === 'No Refund' || origDoc.paymentStatus === 'Not Refunded') {
-          origPaidAmt = 0;
-        }
-      }
-    }
-    
-    if (!isRet && !isOrd && invoice.orderNo) {
-      const linkedOrder = (window.KYA_STORE.salesVouchers || []).find(v => v.isOrder && v.invoiceNo.toLowerCase() === invoice.orderNo.toLowerCase());
-      if (linkedOrder) {
-        if (linkedOrder.paymentStatus === 'Full Payment') {
-          orderAdvanceAmount = linkedOrder.total;
-        } else if (linkedOrder.paymentStatus === 'Partial Payment') {
-          orderAdvanceAmount = linkedOrder.paymentAmount || 0;
-        }
-      }
-    }
-    
-    if (isRet) {
-      if (invoice.paymentStatus === 'Full Refund') {
-        paidAmount = origPaidAmt;
-      } else if (invoice.paymentStatus === 'Partial Refund') {
-        paidAmount = invoice.paymentAmount || 0;
-      } else {
-        paidAmount = 0;
-      }
-    } else {
-      if (invoice.paymentStatus === 'Full Payment') {
-        paidAmount = Math.max(0, invoice.total - orderAdvanceAmount);
-      } else if (invoice.paymentStatus === 'Partial Payment') {
-        paidAmount = invoice.paymentAmount || 0;
-      } else if (invoice.paymentStatus === 'Not Refunded' || invoice.paymentStatus === 'Partial Refund' || invoice.paymentStatus === 'Full Refund') {
-        paidAmount = 0;
-      }
-    }
-    const unpaidAmount = invoice.total - paidAmount;
-    
-    if (isOrd) {
-      if (paidAmount > 0) {
-        const payAccount = coaLedgers.find(l => l.id == invoice.paymentAccountId);
-        const payAccountName = payAccount ? payAccount.name : 'Cash Account';
-        
-        journalRows.push({
-          id: journalRows.length + 1,
-          type: 'By',
-          particular: payAccountName,
-          debit: paidAmount.toFixed(2),
-          credit: ''
-        });
-        
-        const advanceLedgerId = getOrCreateSystemLedger('Advance from Customers', 'sg-ocl');
-        const advanceLedgerName = coaLedgers.find(l => l.id == advanceLedgerId).name;
-        journalRows.push({
-          id: journalRows.length + 1,
-          type: 'To',
-          particular: advanceLedgerName,
-          debit: '',
-          credit: paidAmount.toFixed(2)
-        });
-      }
-    } else if (isRet) {
-      if (isReturnAgainstOrder) {
-        // ── Sales Order Reversal ──────────────────────────────────────────────
-        // Accounting effect: only Advance from Customers ↔ Cash/Bank
-        // (and Refund Payable for any amount not yet refunded)
-        // 
-        // Dr  Advance from Customers   origPaidAmt
-        //   Cr  Cash / Bank            paidAmount       (refund given now)
-        //   Cr  Refund Payable         pendingRefund     (if partial / no refund)
-
-        // Debit: Reverse the Advance from Customers liability
-        if (origPaidAmt > 0) {
-          const advanceLedgerId = getOrCreateSystemLedger('Advance from Customers', 'sg-ocl');
-          const advanceLedgerName = coaLedgers.find(l => l.id == advanceLedgerId).name;
-          journalRows.push({
-            id: journalRows.length + 1,
-            type: 'By',
-            particular: advanceLedgerName,
-            debit: origPaidAmt.toFixed(2),
-            credit: ''
-          });
-        }
-
-        // Credit: Cash / Bank for the actual refund paid now
-        if (paidAmount > 0) {
-          const payAccount = coaLedgers.find(l => l.id == invoice.paymentAccountId);
-          const payAccountName = payAccount ? payAccount.name : 'Cash Account';
-          journalRows.push({
-            id: journalRows.length + 1,
-            type: 'To',
-            particular: payAccountName,
-            debit: '',
-            credit: paidAmount.toFixed(2)
-          });
-        }
-
-        // Credit: Refund Payable for the balance not yet refunded
-        const pendingRefund = Math.max(0, origPaidAmt - paidAmount);
-        if (pendingRefund > 0) {
-          const refundLedgerId = getOrCreateSystemLedger('Refund Payable', 'sg-ocl');
-          const refundLedgerName = coaLedgers.find(l => l.id == refundLedgerId).name;
-          journalRows.push({
-            id: journalRows.length + 1,
-            type: 'To',
-            particular: refundLedgerName,
-            debit: '',
-            credit: pendingRefund.toFixed(2)
-          });
         }
 
       } else {
@@ -859,7 +643,7 @@
           journalRows.push({
             id: journalRows.length + 1,
             type: 'To',
-            particular: customerName,
+            particular: 'Trade Receivables',
             debit: '',
             credit: debtReduction.toFixed(2)
           });
@@ -977,7 +761,7 @@
         journalRows.push({
           id: journalRows.length + 1,
           type: 'By',
-          particular: customerName,
+          particular: 'Trade Receivables',
           debit: unpaidAmount.toFixed(2),
           credit: ''
         });
@@ -1169,11 +953,11 @@
         const excessAmount = Math.max(0, orderAdvanceAmount - invoice.total);
         
         if (settledAmount > 0) {
-          // Credit: Customer Account (To)
+          // Credit: Trade Receivables (To)
           journalRows.push({
             id: journalRows.length + 1,
             type: 'To',
-            particular: customerName,
+            particular: 'Trade Receivables',
             debit: '',
             credit: settledAmount.toFixed(2)
           });
@@ -1214,7 +998,7 @@
       preparedBy:     'Sales Module',
       departmentId:   '',
       isBudget:       false,
-      firstParticular: customerName,
+      firstParticular: (paidAmount > 0) ? 'Cash Account' : 'Trade Receivables',
       amount:         isOrd ? fmtNum(paidAmount) : (isReturnAgainstOrder ? fmtNum(origPaidAmt) : fmtNum(invoice.total)),
       allRows:        journalRows,
       narration:      isOrd

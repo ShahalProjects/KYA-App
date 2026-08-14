@@ -131,7 +131,7 @@
     overlay.innerHTML = `
       <div class="inv-modal-card" style="padding: 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1.5px solid var(--slate-100); background: var(--slate-50); border-radius: 20px 20px 0 0;">
-          <div style="font-weight: 700; color: var(--slate-800);">${inv.isReturn ? 'Sales Reversal Preview' : (inv.isOrder ? 'Sales Order Preview' : 'Invoice Preview')}</div>
+          <div style="font-weight: 700; color: var(--slate-800);">${inv.isReturn ? 'Sales Reversal Preview' : (inv.isOrder ? 'Sales Pre Invoice Preview' : 'Invoice Preview')}</div>
           <div style="display: flex; gap: 12px; align-items: center;">
             <button onclick="loadSalesInvoice((window.KYA_STORE.salesVouchers || []).find(v => v.id === ${inv.id}), false); document.getElementById('salesInvoicePrintOverlay')?.remove();" title="Edit Invoice" style="background: var(--blue-50); border: 1.5px solid var(--blue-100); border-radius: 6px; padding: 8px; cursor: pointer; color: var(--blue-600); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='var(--blue-100)'" onmouseout="this.style.background='var(--blue-50)'">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -178,7 +178,7 @@
               </div>
             </div>
             <div style="text-align: right;">
-              <h1 style="font-size: 32px; font-weight: 900; text-transform: uppercase; color: var(--slate-800); margin: 0; letter-spacing: -0.5px;">${inv.isReturn ? 'Credit Note / Sales Reversal' : (inv.isOrder ? 'Sales Order' : 'Tax Invoice')}</h1>
+              <h1 style="font-size: 32px; font-weight: 900; text-transform: uppercase; color: var(--slate-800); margin: 0; letter-spacing: -0.5px;">${inv.isReturn ? 'Credit Note / Sales Reversal' : (inv.isOrder ? 'Sales Pre Invoice' : 'Tax Invoice')}</h1>
               <div style="font-size: 14px; font-weight: 700; color: var(--blue-700); margin-top: 4px;"># ${ohEsc(inv.invoiceNo)}</div>
             </div>
           </div>
@@ -241,7 +241,19 @@
           <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; margin-top: 30px;">
             <div>
               <h4 style="font-size: 11px; text-transform: uppercase; color: var(--slate-400); letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 700;">Terms & Notes:</h4>
-              <div style="font-size: 12.5px; color: var(--slate-600); line-height: 1.5; white-space: pre-wrap; font-weight: 500;">${ohEsc(inv.notes) || (inv.isReturn ? 'Sales Reversal / Credit Note processed.' : (inv.isOrder ? 'Sales Order placed.' : 'Thank you for your business! Please settle this invoice by the due date.'))}</div>
+              <div style="font-size: 12.5px; color: var(--slate-600); line-height: 1.5; white-space: pre-wrap; font-weight: 500;">${ohEsc(inv.notes) || (inv.isReturn ? 'Sales Reversal / Credit Note processed.' : (inv.isOrder ? 'Sales Pre Invoice saved.' : 'Thank you for your business! Please settle this invoice by the due date.'))}</div>
+              ${inv.uploadedDoc && inv.uploadedDoc.fileData ? `
+                <div style="margin-top: 14px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                  <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" style="flex-shrink: 0;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    <span style="font-size: 12px; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${ohEsc(inv.uploadedDoc.fileName)} ${inv.uploadedDoc.fileSize ? `<span style="font-size: 11px; color: #64748b;">(${ohEsc(inv.uploadedDoc.fileSize)})</span>` : ''}</span>
+                  </div>
+                  <a href="${inv.uploadedDoc.fileData}" download="${ohEsc(inv.uploadedDoc.fileName)}" style="font-size: 11px; font-weight: 700; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; padding: 4px 9px; border-radius: 6px; text-decoration: none; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Attachment
+                  </a>
+                </div>
+              ` : ''}
             </div>
             
             <div>
@@ -262,7 +274,7 @@
                 
                 ${inv.adjustments !== 0 ? `
                   <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: var(--slate-600); margin-top: 8px; border-top: 1px dashed var(--slate-200); padding-top: 8px; font-weight: 500;">
-                    <span>Adjustments</span>
+                    <span>Round off</span>
                     <span>₹ ${fmtNum(inv.adjustments)}</span>
                   </div>
                 ` : ''}
@@ -487,17 +499,15 @@
     const tdsBtn = document.getElementById('salesTdsTcsTds');
     const tcsBtn = document.getElementById('salesTdsTcsTcs');
     const tBg = document.getElementById('salesTdsTcsBg');
-    const rateGroup = document.getElementById('salesTdsTcsRateGroup');
     const amtRow = document.getElementById('salesTdsTcsAmountRow');
     const amtLabel = document.getElementById('salesTdsTcsAmountLabel');
     
-    if (noneBtn && tdsBtn && tcsBtn && tBg && rateGroup && amtRow && amtLabel) {
+    if (noneBtn && tdsBtn && tcsBtn && tBg && amtRow && amtLabel) {
       noneBtn.addEventListener('click', () => {
         noneBtn.classList.add('active');
         tdsBtn.classList.remove('active');
         tcsBtn.classList.remove('active');
         tBg.className = 'sales-tdstcs-bg none-active';
-        rateGroup.style.display = 'none';
         amtRow.style.display = 'none';
         recalculateSalesTotals();
       });
@@ -507,9 +517,8 @@
         noneBtn.classList.remove('active');
         tcsBtn.classList.remove('active');
         tBg.className = 'sales-tdstcs-bg tds-active';
-        rateGroup.style.display = 'block';
-        amtRow.style.display = 'flex';
-        amtLabel.textContent = 'TDS Deducted (Dr)';
+        amtRow.style.display = 'block';
+        amtLabel.textContent = 'TDS';
         recalculateSalesTotals();
       });
       
@@ -518,9 +527,8 @@
         noneBtn.classList.remove('active');
         tdsBtn.classList.remove('active');
         tBg.className = 'sales-tdstcs-bg tcs-active';
-        rateGroup.style.display = 'block';
-        amtRow.style.display = 'flex';
-        amtLabel.textContent = 'TCS Collected (Cr)';
+        amtRow.style.display = 'block';
+        amtLabel.textContent = 'TCS';
         recalculateSalesTotals();
       });
     }
@@ -573,7 +581,7 @@
       rateSelect.addEventListener('change', () => {
         const customWrap = document.getElementById('salesTdsTcsRateCustomWrap');
         if (rateSelect.value === 'custom') {
-          if (customWrap) customWrap.style.display = 'block';
+          if (customWrap) customWrap.style.display = 'flex';
         } else {
           if (customWrap) customWrap.style.display = 'none';
         }
@@ -585,26 +593,64 @@
       customInput.addEventListener('input', recalculateSalesTotals);
     }
     
-    const tdsTcsAmt = document.getElementById('salesTdsTcsAmount');
-    if (tdsTcsAmt) tdsTcsAmt.addEventListener('input', recalculateSalesTotals);
-    
-    const adjustments = document.getElementById('salesAdjustments');
-    if (adjustments) adjustments.addEventListener('input', recalculateSalesTotals);
+    const btnAutoRound = document.getElementById('btnSalesAutoRoundOff');
+    if (btnAutoRound) {
+      btnAutoRound.addEventListener('click', autoCalculateSalesRoundOff);
+    }
+
+    const adjustmentsInput = document.getElementById('salesAdjustments');
+    if (adjustmentsInput) {
+      adjustmentsInput.addEventListener('input', recalculateSalesTotals);
+      adjustmentsInput.addEventListener('blur', () => {
+        const val = parseSalesAmt(adjustmentsInput.value);
+        if (!isNaN(val)) {
+          const clamped = Math.round(val * 100) / 100;
+          adjustmentsInput.value = clamped === 0 ? '' : clamped.toFixed(2);
+          recalculateSalesTotals();
+        }
+      });
+      adjustmentsInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const val = parseSalesAmt(adjustmentsInput.value);
+          if (!isNaN(val)) {
+            const clamped = Math.round(val * 100) / 100;
+            adjustmentsInput.value = clamped === 0 ? '' : clamped.toFixed(2);
+            recalculateSalesTotals();
+          }
+        }
+      });
+    }
     
     const body = document.getElementById('salesItemBody');
     if (body) {
       body.addEventListener('input', (e) => {
         const tr = e.target.closest('tr');
         if (!tr) return;
+        const isRate = e.target.classList.contains('sales-row-rate');
+        const isAmt = e.target.classList.contains('sales-row-amount-input');
+        const isBase = e.target.classList.contains('sales-row-base');
+        const isDisc = e.target.classList.contains('sales-row-discount');
+
+        if ((isRate || isAmt || isBase || isDisc) && !/[\+\-\*\/\%]/.test(e.target.value)) {
+          if (e.target.value && e.target.value.includes('.')) {
+            const parts = e.target.value.split('.');
+            if (parts[1] && parts[1].length > 2) {
+              e.target.value = parts[0] + '.' + parts[1].slice(0, 2);
+            }
+          }
+        }
         const index = parseInt(tr.dataset.rowIndex);
-        updateRowFromDOM(index, tr);
+        const triggeredBy = isAmt ? 'amount' : 'rate';
+        updateRowFromDOM(index, tr, triggeredBy);
       });
       
       body.addEventListener('change', (e) => {
         const tr = e.target.closest('tr');
         if (!tr) return;
         const index = parseInt(tr.dataset.rowIndex);
-        updateRowFromDOM(index, tr);
+        const triggeredBy = e.target.classList.contains('sales-row-amount-input') ? 'amount' : 'rate';
+        updateRowFromDOM(index, tr, triggeredBy);
       });
       
       body.addEventListener('click', (e) => {
@@ -621,6 +667,23 @@
           }
         }
       });
+
+      // Evaluate math expression and format on blur
+      body.addEventListener('blur', (e) => {
+        const isRate = e.target.classList.contains('sales-row-rate');
+        const isAmt = e.target.classList.contains('sales-row-amount-input');
+        const isBase = e.target.classList.contains('sales-row-base');
+        const isDisc = e.target.classList.contains('sales-row-discount');
+        if (!isRate && !isAmt && !isBase && !isDisc) return;
+
+        const val = parseSalesAmt(e.target.value);
+        if (!isNaN(val)) {
+          const clamped = Math.round(val * 100) / 100;
+          e.target.value = clamped === 0 ? '' : clamped.toFixed(2);
+          const tr = e.target.closest('tr');
+          if (tr) updateRowFromDOM(parseInt(tr.dataset.rowIndex), tr, isAmt ? 'amount' : 'rate');
+        }
+      }, true); // capture phase so blur bubbles correctly
     }
     
     const dateEl = document.getElementById('salesDate');

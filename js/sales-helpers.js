@@ -55,10 +55,17 @@
     const isLocked = isSalesReturnInvoiceSelected();
     
     const custEl = document.getElementById('salesCustomer');
+    const custTrigger = document.getElementById('salesCustomerSelectTrigger');
     if (custEl) {
       custEl.disabled = isLocked;
       custEl.style.backgroundColor = isLocked ? 'var(--slate-50)' : '';
       custEl.style.cursor = isLocked ? 'not-allowed' : '';
+    }
+    if (custTrigger) {
+      custTrigger.style.pointerEvents = isLocked ? 'none' : '';
+      custTrigger.style.backgroundColor = isLocked ? 'var(--slate-50)' : '#fff';
+      custTrigger.style.cursor = isLocked ? 'not-allowed' : 'pointer';
+      custTrigger.style.opacity = isLocked ? '0.7' : '1';
     }
     
     const supplyTypeEl = document.getElementById('salesSupplyType');
@@ -127,7 +134,7 @@
     
     if (tdsTcsNoneBtn) { tdsTcsNoneBtn.disabled = false; tdsTcsNoneBtn.style.cursor = ''; tdsTcsNoneBtn.style.opacity = ''; }
     if (tdsTcsTdsBtn) { tdsTcsTdsBtn.disabled = false; tdsTcsTdsBtn.style.cursor = ''; tdsTcsTdsBtn.style.opacity = ''; }
-    if (tdsTcsTcsBtn) { tdsTcsTcsBtn.disabled = false; tdsTcsTcsBtn.style.cursor = ''; tdsTcsTcsBtn.style.opacity = ''; }
+    if (tdsTcsTcsBtn) { tdsTcsTdsBtn.disabled = false; tdsTcsTcsBtn.style.cursor = ''; tdsTcsTcsBtn.style.opacity = ''; }
 
     const payAmtEl = document.getElementById('salesPaymentAmount');
     if (payAmtEl) {
@@ -289,6 +296,15 @@
     return maxVal;
   }
 
+  function calculateSubtotal() {
+    if (typeof salesRows === 'undefined' || !Array.isArray(salesRows)) return 0;
+    let sub = 0;
+    salesRows.forEach(r => {
+      sub += (parseFloat(r.amount) || 0);
+    });
+    return Math.round(sub * 100) / 100;
+  }
+
   function updateSalesPaymentUI() {
     const payNotPaidBtn = document.getElementById('salesPaymentStatusNotPaid');
     const payFullBtn = document.getElementById('salesPaymentStatusFull');
@@ -379,6 +395,35 @@
     }
   }
 
+  // Math expression evaluation helper for calculator behavior
+  function evaluateSalesMathExpression(str) {
+    let clean = (str || '').toString().replace(/,/g, '').trim();
+    if (!clean) return 0;
+    clean = clean.replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+    if (!/^[0-9.+\-*/()\s]+$/.test(clean)) {
+      return NaN;
+    }
+    try {
+      const result = Function(`"use strict"; return (${clean})`)();
+      return typeof result === 'number' && isFinite(result) ? result : NaN;
+    } catch (e) {
+      return NaN;
+    }
+  }
+
+  function parseSalesAmt(str) {
+    const cleanStr = (str || '').toString().replace(/,/g, '').trim();
+    if (!cleanStr) return 0;
+    if (/[\+\-\*\/\%]/.test(cleanStr)) {
+      const evalVal = evaluateSalesMathExpression(cleanStr);
+      if (!isNaN(evalVal)) {
+        return evalVal;
+      }
+    }
+    const v = parseFloat(cleanStr);
+    return isNaN(v) ? 0 : v;
+  }
+
   // Initialize store for future features
   if (!window.KYA_STORE) {
     window.KYA_STORE = {};
@@ -388,4 +433,3 @@
   window.KYA_STORE.salesInvoiceCtr = window.KYA_STORE.salesInvoiceCtr || 1;
   window.KYA_STORE.salesReturnCtr = window.KYA_STORE.salesReturnCtr || 1;
   window.KYA_STORE.salesOrderCtr = window.KYA_STORE.salesOrderCtr || 1;
-

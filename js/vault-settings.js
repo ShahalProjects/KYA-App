@@ -9,6 +9,8 @@
     if (activeTabId === 'pnl') renderPnlPanel();
     if (activeTabId === 'trial') renderTrialBalancePanel();
     if (activeTabId === 'onehub') renderOneHubPanel();
+    if (activeTabId === 'sales_voucher') initSalesForm();
+    if (activeTabId === 'journal') { populateJeDepartments(); if (typeof initFormDefaults === 'function') initFormDefaults(); }
   }
 
   function performRestore(jsonStr, quiet = false) {
@@ -22,8 +24,32 @@
         initDefaultLedgers();
       }
 
-      if (Array.isArray(data.postedEntries)) postedEntries = data.postedEntries;
-      else postedEntries = [];
+      if (Array.isArray(data.coaSubGroups) && data.coaSubGroups.length > 0) {
+        if (typeof DEFAULT_COA_SYS_SGS !== 'undefined') {
+          const merged = [...DEFAULT_COA_SYS_SGS];
+          data.coaSubGroups.forEach(p => {
+            if (!merged.some(m => m.id === p.id)) {
+              merged.push(p);
+            }
+          });
+          COA_SYS_SGS = merged;
+        } else {
+          COA_SYS_SGS = data.coaSubGroups;
+        }
+        if (typeof saveCoaSubGroups === 'function') saveCoaSubGroups();
+      }
+
+      if (Array.isArray(data.postedEntries)) {
+        postedEntries = data.postedEntries.filter(e => {
+          if (!e) return false;
+          if (e.preparedBy === 'Sales Module') return false;
+          const no = e.voucherNo || '';
+          if (no.startsWith('SV-') || no.startsWith('SR-') || no.startsWith('SO-') || no.startsWith('RF-')) return false;
+          return true;
+        });
+      } else {
+        postedEntries = [];
+      }
 
       if (Array.isArray(data.draftedEntries)) draftedEntries = data.draftedEntries;
       else draftedEntries = [];
@@ -86,6 +112,11 @@
       window.KYA_STORE.salesInvoiceCtr = window.KYA_STORE.salesInvoiceCtr || 1;
       window.KYA_STORE.salesReturnCtr = window.KYA_STORE.salesReturnCtr || 1;
       window.KYA_STORE.salesOrderCtr = window.KYA_STORE.salesOrderCtr || 1;
+      window.KYA_STORE.purchaseVouchers = window.KYA_STORE.purchaseVouchers || [];
+      window.KYA_STORE.purchaseVouchersDrafts = window.KYA_STORE.purchaseVouchersDrafts || [];
+      window.KYA_STORE.purchaseInvoiceCtr = window.KYA_STORE.purchaseInvoiceCtr || 1;
+      window.KYA_STORE.customers = window.KYA_STORE.customers || [];
+      window.KYA_STORE.suppliers = window.KYA_STORE.suppliers || [];
 
       if (!quiet) {
         showToast('Data restored successfully.', 'success');
@@ -344,6 +375,20 @@
       }
 
       updateVaultUI();
+
+      // Re-initialize forms and active panel with the freshly loaded data
+      if (typeof initFormDefaults === 'function') {
+        initFormDefaults();
+      }
+      if (typeof initSalesForm === 'function') {
+        initSalesForm();
+      }
+      if (typeof initPurchaseForm === 'function') {
+        initPurchaseForm();
+      }
+      if (typeof switchToActivePanel === 'function') {
+        switchToActivePanel();
+      }
     } catch (e) {
       console.error('Error during startup load:', e);
     }
@@ -661,6 +706,7 @@
       const activePath = getActiveVaultPath();
       const backupData = {
         coaLedgers,
+        coaSubGroups: typeof COA_SYS_SGS !== 'undefined' ? COA_SYS_SGS : [],
         postedEntries,
         draftedEntries,
         jvCounter,
@@ -744,11 +790,7 @@
   }
 
   function triggerAutoBackup() {
-    const activePath = getActiveVaultPath();
-    const autoVal = localStorage.getItem(getVaultKey('kya_auto_backup', activePath)) === 'true';
-    if (autoVal) {
-      saveKyaBackup(true);
-    }
+    saveKyaBackup(true);
   }
 
   // ── Sales Voucher State & Functions ────────────────────────────────

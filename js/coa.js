@@ -13,7 +13,7 @@
   }
 
   // Each entry: { id, sgId, glId, name, code, openingBalance, type:'ledger'|'group-ledger' }
-  let coaLedgers = [];
+  // coaLedgers is a shared global (window.coaLedgers), pre-initialized in app-shell.js.
 
   function initDefaultLedgers() {
     if (coaLedgers && coaLedgers.length > 0) return;
@@ -57,12 +57,7 @@
       // Current Investments (sg-ci)
       { name: 'Short-Term Investments', sgId: 'sg-ci' },
 
-      // Inventories (sg-inv)
-      { name: 'Raw Materials', sgId: 'sg-inv' },
-      { name: 'Work-in-Progress', sgId: 'sg-inv' },
-      { name: 'Finished Goods', sgId: 'sg-inv' },
-      { name: 'Stock-in-Trade', sgId: 'sg-inv' },
-      { name: 'Stores & Spares', sgId: 'sg-inv' },
+      // Inventories (sg-inv) - clean / empty by default
 
       // Trade Receivables (sg-tr)
       { name: 'Trade Receivables', sgId: 'sg-tr' },
@@ -711,9 +706,15 @@
     if (!sg) return false;
     if (_coaFilterMg && sg.main !== _coaFilterMg) return false;
 
-    if (q && !_coaFilterType && !_coaFilterBal) {
+    if (!q && !_coaFilterType && !_coaFilterBal) return true;
+
+    if (q) {
       if (sg.name.toLowerCase().includes(q)) return true;
+      if (Array.isArray(sg.aliases) && sg.aliases.some(a => a.toLowerCase().includes(q))) return true;
     }
+
+    const children = COA_SYS_SGS.filter(s => s.parent === sgId);
+    if (children.some(ch => _coaMatchesSg(ch.id, q))) return true;
 
     const sgLedgers = coaLedgers.filter(l => l.sgId === sgId);
     return sgLedgers.some(l => {
@@ -721,16 +722,17 @@
         return _coaLdgMatchesFilters(l, q);
       } else {
         if (_coaGlMatchesFilters(l, q)) return true;
-        const children = coaLedgers.filter(ch => ch.glId === l.id);
-        return children.some(ch => _coaLdgMatchesFilters(ch, q));
+        const glChildren = coaLedgers.filter(ch => ch.glId === l.id);
+        return glChildren.some(ch => _coaLdgMatchesFilters(ch, q));
       }
     });
   }
 
   function _coaMatchesMg(mgId, q) {
     if (_coaFilterMg && mgId !== _coaFilterMg) return false;
+    if (!q && !_coaFilterType && !_coaFilterBal) return true;
 
-    if (q && !_coaFilterType && !_coaFilterBal) {
+    if (q) {
       const mg = COA_MAIN_GROUPS.find(m => m.id === mgId);
       if (mg && mg.name.toLowerCase().includes(q)) return true;
     }
@@ -755,59 +757,73 @@
       </div>`;
   }
 
+  // ── Render group ledger (supports nested group ledgers) ─────────
+  function _coaRenderGl(gl, sgId, q, baseIndent, glIndent) {
+    const bi = baseIndent || '';
+    const gi = glIndent  || '';
+    const children = coaLedgers.filter(ch => ch.glId === gl.id);
+    const matchingChildren = children.filter(ch => {
+      if (ch.type === 'ledger') return _coaLdgMatchesFilters(ch, q);
+      return _coaGlMatchesFilters(ch, q) || coaLedgers.filter(c => c.glId === ch.id).some(c => _coaLdgMatchesFilters(c, q));
+    });
+    const glMatches = _coaGlMatchesFilters(gl, q);
+
+    if (_coaFilterType === 'ledger' || _coaFilterBal) {
+      let ldgHtml = '';
+      for (const ch of matchingChildren) {
+        if (ch.type === 'ledger') ldgHtml += _coaLdgRow(ch, bi, q);
+        else ldgHtml += _coaRenderGl(ch, sgId, q, bi, gi);
+      }
+      return ldgHtml;
+    }
+
+    if (!glMatches && !matchingChildren.length) return '';
+
+    const isOpen = _coaExpanded.has('gl-'+gl.id) || !!q || _coaFilterMg || _coaFilterType || _coaFilterBal;
+    let childHtml = '';
+    for (const ch of matchingChildren) {
+      if (ch.type === 'ledger') {
+        childHtml += _coaLdgRow(ch, gi, q);
+      } else {
+        childHtml += _coaRenderGl(ch, sgId, q, gi, gi + ' gl-nested-indent');
+      }
+    }
+
+    return `
+      <div class="coa-gl" data-gl-node="${gl.id}">
+        <div class="coa-gl-hdr ${bi}" data-coa-toggle="gl-${gl.id}">
+          <svg class="coa-caret${isOpen?' open':''}" width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M5 3l4 4-4 4" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="coa-gl-icon">📁</span>
+          <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="coa-gl-name" style="flex: none;">${_coaHl(gl.name, q)}</span>
+              ${gl.code ? `<span class="coa-ldg-code">${gl.code}</span>` : ''}
+            </div>
+            ${gl.aliases && gl.aliases.length > 0 ? `<div style="font-size: 11px; color: #b45309; font-weight: 500; margin-top: 2px;">A.K.A: ${gl.aliases.map(a => _coaHl(a, q)).join(', ')}</div>` : ''}
+          </div>
+          <div class="coa-gl-acts">
+            <button class="coa-la coa-la-edit" data-coa-edit="${gl.id}" style="font-size:11px">Edit</button>
+            <button class="coa-la coa-la-del"  data-coa-del="${gl.id}"  style="font-size:11px">Delete</button>
+          </div>
+        </div>
+        <div id="coaBody-gl-${gl.id}" style="${isOpen?'':'display:none'}">
+          ${childHtml || `<div style="padding:6px 22px 6px ${gi==='gl1-indent'?'72':'90'}px;font-size:12px;color:#94a3b8;font-style:italic">No ledgers yet.</div>`}
+        </div>
+      </div>`;
+  }
+
   // ── Render ledgers + group-ledgers for a sub-group ───────────────
   function _coaRenderContent(sgId, q, baseIndent, glIndent) {
     const bi = baseIndent || '';
     const gi = glIndent  || '';
     let html = '';
 
-    // 1. Group Ledgers in this sub-group
-    const groupLdgs = coaLedgers.filter(l => l.sgId === sgId && l.type === 'group-ledger');
-    for (const gl of groupLdgs) {
-      const children = coaLedgers.filter(ch => ch.glId === gl.id);
-      const matchingChildren = children.filter(ch => _coaLdgMatchesFilters(ch, q));
-      const glMatches = _coaGlMatchesFilters(gl, q);
-
-      // Bypassing folders if only showing ledgers or only showing opening balance filters
-      if (_coaFilterType === 'ledger' || _coaFilterBal) {
-        for (const ch of matchingChildren) {
-          html += _coaLdgRow(ch, bi, q);
-        }
-        continue;
-      }
-
-      if (!glMatches && !matchingChildren.length) continue;
-
-      const isOpen = _coaExpanded.has('gl-'+gl.id) || !!q || _coaFilterMg || _coaFilterType || _coaFilterBal;
-      let childHtml = '';
-      for (const ch of matchingChildren) {
-        childHtml += _coaLdgRow(ch, gi, q);
-      }
-
-      html += `
-        <div class="coa-gl" data-gl-node="${gl.id}">
-          <div class="coa-gl-hdr ${bi}" data-coa-toggle="gl-${gl.id}">
-            <svg class="coa-caret${isOpen?' open':''}" width="13" height="13" viewBox="0 0 14 14" fill="none">
-              <path d="M5 3l4 4-4 4" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="coa-gl-icon">📁</span>
-            <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="coa-gl-name" style="flex: none;">${_coaHl(gl.name, q)}</span>
-                ${gl.code ? `<span class="coa-ldg-code">${gl.code}</span>` : ''}
-                <span class="coa-gl-tag">Group Ledger</span>
-              </div>
-              ${gl.aliases && gl.aliases.length > 0 ? `<div style="font-size: 11px; color: #b45309; font-weight: 500; margin-top: 2px;">A.K.A: ${gl.aliases.map(a => _coaHl(a, q)).join(', ')}</div>` : ''}
-            </div>
-            <div class="coa-gl-acts">
-              <button class="coa-la coa-la-edit" data-coa-edit="${gl.id}" style="font-size:11px">Edit</button>
-              <button class="coa-la coa-la-del"  data-coa-del="${gl.id}"  style="font-size:11px">Delete</button>
-            </div>
-          </div>
-          <div id="coaBody-gl-${gl.id}" style="${isOpen?'':'display:none'}">
-            ${childHtml || `<div style="padding:6px 22px 6px ${gi==='gl1-indent'?'72':'90'}px;font-size:12px;color:#94a3b8;font-style:italic">No ledgers yet.</div>`}
-          </div>
-        </div>`;
+    // 1. Top-level Group Ledgers in this sub-group
+    const topGroupLdgs = coaLedgers.filter(l => l.sgId === sgId && l.type === 'group-ledger' && !l.glId);
+    for (const gl of topGroupLdgs) {
+      html += _coaRenderGl(gl, sgId, q, bi, gi);
     }
 
     // 2. Regular ledgers directly under this sub-group (no group ledger parent)
@@ -816,7 +832,6 @@
     for (const l of matchingDirect) {
       html += _coaLdgRow(l, bi, q);
     }
-
 
     return html;
   }
@@ -833,7 +848,6 @@
             <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span class="coa-sg2-name">${_coaHl(sg.name, q)}</span>
-          <span class="coa-sys-tag">System</span>
         </div>
         <div id="coaBody-${sg.id}" style="${isOpen?'':'display:none'}">
           ${_coaRenderContent(sg.id, q, '', 'gl-indent')}
@@ -850,9 +864,9 @@
     let bodyHtml = '';
     if (children.length) {
       for (const ch of children) bodyHtml += _coaRenderSg2(ch, q);
-    } else {
-      bodyHtml = _coaRenderContent(sg.id, q, 'l1-indent', 'gl1-indent');
     }
+    bodyHtml += _coaRenderContent(sg.id, q, 'l1-indent', 'gl1-indent');
+    const isCustom = sg.id && sg.id.startsWith('sg-grp-');
     return `
       <div class="coa-sg1" data-sg1="${sg.id}">
         <div class="coa-sg1-hdr" data-coa-toggle="${sg.id}">
@@ -860,7 +874,11 @@
             <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <span class="coa-sg1-name">${_coaHl(sg.name, q)}</span>
-          <span class="coa-sys-tag">System</span>
+          ${isCustom ? `
+            <div class="coa-gl-acts" style="margin-left: auto;">
+              <button class="coa-la coa-la-del" data-coa-del-sg="${sg.id}" style="font-size:11px">Delete</button>
+            </div>
+          ` : ''}
         </div>
         <div id="coaBody-${sg.id}" style="${isOpen?'':'display:none'}">${bodyHtml}</div>
       </div>`;
@@ -908,11 +926,17 @@
   }
 
   function _coaGroupLedgerOptions(sgId, selectedGlId) {
-    const gls = coaLedgers.filter(l => l.sgId === sgId && l.type === 'group-ledger');
-    if (!gls.length) return '<option value="">— None —</option>';
-    return '<option value="">— None —</option>' + gls.map(gl =>
-      `<option value="${gl.id}" ${gl.id == selectedGlId ? 'selected':''}>${gl.name}</option>`
-    ).join('');
+    let opts = '<option value="">— None —</option>';
+    const addGlOpts = (parentId, depth) => {
+      const gls = coaLedgers.filter(l => l.sgId === sgId && l.type === 'group-ledger' && (parentId ? l.glId === parentId : !l.glId));
+      gls.forEach(gl => {
+        const indent = '\u00a0\u00a0'.repeat(depth);
+        opts += `<option value="${gl.id}" ${gl.id == selectedGlId ? 'selected':''}>${indent}${gl.name}</option>`;
+        addGlOpts(gl.id, depth + 1);
+      });
+    };
+    addGlOpts(null, 0);
+    return opts;
   }
 
   function showCoaDeleteConfirm(ldg, onConfirm) {
@@ -1121,6 +1145,439 @@
       }
     };
   }
+
+  let _kyaPartyHoverCardEl = null;
+  function getOrCreatePartyHoverCard() {
+    if (!_kyaPartyHoverCardEl) {
+      _kyaPartyHoverCardEl = document.getElementById('kyaPartyHoverCard');
+      if (!_kyaPartyHoverCardEl) {
+        _kyaPartyHoverCardEl = document.createElement('div');
+        _kyaPartyHoverCardEl.id = 'kyaPartyHoverCard';
+        _kyaPartyHoverCardEl.style.cssText = `
+          display: none;
+          position: fixed;
+          width: 325px;
+          max-width: calc(100vw - 24px);
+          max-height: calc(100vh - 24px);
+          background: #ffffff;
+          border: 1.5px solid var(--slate-200);
+          border-radius: 12px;
+          box-shadow: 0 20px 40px -6px rgba(0, 0, 0, 0.22), 0 8px 18px rgba(0, 0, 0, 0.08);
+          padding: 14px 16px;
+          z-index: 100005;
+          pointer-events: none;
+          box-sizing: border-box;
+          font-family: inherit;
+          overflow-y: auto;
+          scrollbar-width: thin;
+        `;
+        document.body.appendChild(_kyaPartyHoverCardEl);
+      }
+    }
+    return _kyaPartyHoverCardEl;
+  }
+
+  function positionAndShowPartyHoverCard(targetElement, party, partyType) {
+    if (!targetElement || !party) return;
+    const card = getOrCreatePartyHoverCard();
+    card.innerHTML = getPartyHoverPreviewHtml(party, partyType);
+    card.style.display = 'block';
+    card.style.visibility = 'hidden';
+
+    // Measure card dimensions accurately
+    const cardRect = card.getBoundingClientRect();
+    const cardWidth = cardRect.width || 325;
+    const cardHeight = cardRect.height || 260;
+
+    const targetRect = targetElement.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 12;
+
+    // Horizontal placement with screen collision detection
+    const spaceRight = vw - targetRect.right;
+    const spaceLeft = targetRect.left;
+
+    let left;
+    if (spaceRight >= cardWidth + margin) {
+      left = targetRect.right + 10;
+    } else if (spaceLeft >= cardWidth + margin) {
+      left = targetRect.left - cardWidth - 10;
+    } else {
+      left = Math.max(margin, Math.min(targetRect.left, vw - cardWidth - margin));
+    }
+
+    // Vertical placement clamped strictly within viewport
+    let top = targetRect.top - 6;
+    if (top + cardHeight > vh - margin) {
+      top = Math.max(margin, vh - cardHeight - margin);
+    }
+    if (top < margin) {
+      top = margin;
+    }
+
+    // Max height containment
+    const availableHeight = vh - (margin * 2);
+    card.style.maxHeight = `${availableHeight}px`;
+    card.style.left = `${Math.round(left)}px`;
+    card.style.top = `${Math.round(top)}px`;
+    card.style.visibility = 'visible';
+  }
+
+  function getPartyHoverPreviewHtml(party, typeLabel = 'Customer') {
+    if (!party) return '';
+
+    const name = party.name || 'Unnamed Party';
+    const aliases = Array.isArray(party.aliases) && party.aliases.length > 0 ? party.aliases.join(', ') : '';
+    const contactName = party.contactName ? party.contactName.trim() : '';
+
+    // Address parts
+    const addrParts = [];
+    if (party.address) addrParts.push(party.address.trim());
+    const cityPin = [party.city, party.pincode].filter(Boolean).map(s => s.trim()).join(' - ');
+    if (cityPin) addrParts.push(cityPin);
+    const stateCountry = [party.state, party.country || 'India'].filter(Boolean).map(s => s.trim()).join(', ');
+    if (stateCountry) addrParts.push(stateCountry);
+    const fullAddress = addrParts.length > 0 ? addrParts.join('<br/>') : '<span style="color: var(--slate-400); font-style: italic;">No address provided</span>';
+
+    // Bank parts
+    const hasBank = Boolean(party.bankName || party.accountNo || party.ifsc || party.branch);
+    let bankHtml = '';
+    if (hasBank) {
+      bankHtml = `
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--slate-200); font-size: 11.5px; line-height: 1.45;">
+          <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--slate-500); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+            Bank Details
+          </div>
+          ${party.bankName ? `<div><span style="color: var(--slate-500);">Bank:</span> <strong style="color: var(--slate-800);">${party.bankName}</strong></div>` : ''}
+          ${party.accountNo ? `<div><span style="color: var(--slate-500);">A/C No:</span> <strong style="color: var(--slate-800); font-family: monospace;">${party.accountNo}</strong></div>` : ''}
+          ${party.ifsc ? `<div><span style="color: var(--slate-500);">IFSC:</span> <strong style="color: var(--blue-700); font-family: monospace;">${party.ifsc}</strong></div>` : ''}
+          ${party.branch ? `<div><span style="color: var(--slate-500);">Branch:</span> <span style="color: var(--slate-700);">${party.branch}</span></div>` : ''}
+        </div>
+      `;
+    }
+
+    // Tax parts (GSTIN & PAN)
+    const hasTax = Boolean(party.gstin || party.pan);
+    let taxHtml = '';
+    if (hasTax) {
+      taxHtml = `
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--slate-200); font-size: 11.5px; line-height: 1.45;">
+          <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--slate-500); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Tax Identification
+          </div>
+          ${party.gstin ? `<div><span style="color: var(--slate-500);">GSTIN:</span> <strong style="color: #047857; background: #ecfdf5; padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 11px;">${party.gstin}</strong></div>` : ''}
+          ${party.pan ? `<div><span style="color: var(--slate-500);">PAN:</span> <strong style="color: var(--slate-800); font-family: monospace;">${party.pan}</strong></div>` : ''}
+        </div>
+      `;
+    }
+
+    // Opening / Current Balance
+    const bal = Number(party.openingBalance || 0);
+    const balFormatted = typeof fmtNum === 'function' ? fmtNum(Math.abs(bal)) : Math.abs(bal).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+    return `
+      <!-- Title & Badge -->
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-900); line-height: 1.3; word-break: break-word;">${name}</div>
+          ${contactName ? `<div style="font-size: 11.5px; color: var(--slate-500); font-weight: 500; margin-top: 2px;">Attn: ${contactName}</div>` : ''}
+          ${aliases ? `<div style="font-size: 11px; color: var(--blue-600); font-weight: 500; margin-top: 2px;">A.K.A: ${aliases}</div>` : ''}
+        </div>
+        <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: ${typeLabel.toLowerCase().includes('customer') ? '#eff6ff' : '#f0fdf4'}; color: ${typeLabel.toLowerCase().includes('customer') ? '#1d4ed8' : '#15803d'}; border: 1px solid ${typeLabel.toLowerCase().includes('customer') ? '#dbeafe' : '#bbf7d0'}; white-space: nowrap;">${typeLabel}</span>
+      </div>
+
+      <!-- Balance Strip -->
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid var(--slate-200); border-radius: 6px; padding: 5px 8px; margin-bottom: 8px; font-size: 11.5px;">
+        <span style="color: var(--slate-500); font-weight: 500;">Opening Balance</span>
+        <span style="font-weight: 700; color: var(--slate-800);">₹ ${balFormatted}</span>
+      </div>
+
+      <!-- Address -->
+      <div style="font-size: 11.5px; line-height: 1.45;">
+        <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--slate-500); margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          Address & Location
+        </div>
+        <div style="color: var(--slate-700);">${fullAddress}</div>
+      </div>
+
+      <!-- Tax -->
+      ${taxHtml}
+
+      <!-- Bank -->
+      ${bankHtml}
+    `;
+  }
+
+  function findPartyById(partyId, partyType) {
+    if (!partyId) return null;
+    const pStr = String(partyId);
+    if (partyType && partyType.toLowerCase().includes('customer')) {
+      const cust = typeof getKyaCustomers === 'function' ? getKyaCustomers().find(c => String(c.id) === pStr) : null;
+      if (cust) return cust;
+    } else if (partyType && (partyType.toLowerCase().includes('supplier') || partyType.toLowerCase().includes('vendor'))) {
+      const supp = typeof getKyaSuppliers === 'function' ? getKyaSuppliers().find(s => String(s.id) === pStr) : null;
+      if (supp) return supp;
+    }
+    if (typeof getKyaCustomers === 'function') {
+      const cust = getKyaCustomers().find(c => String(c.id) === pStr);
+      if (cust) return cust;
+    }
+    if (typeof getKyaSuppliers === 'function') {
+      const supp = getKyaSuppliers().find(s => String(s.id) === pStr);
+      if (supp) return supp;
+    }
+    if (typeof coaLedgers !== 'undefined' && Array.isArray(coaLedgers)) {
+      return coaLedgers.find(l => String(l.id) === pStr);
+    }
+    return null;
+  }
+  window.findPartyById = findPartyById;
+
+  function initPartySearchableSelect(selectId, placeholderText = 'Select Party', partyType = 'Customer') {
+    const realSelect = document.getElementById(selectId);
+    const wrap = document.getElementById(selectId + 'SelectWrap');
+    const trigger = document.getElementById(selectId + 'SelectTrigger');
+    const triggerText = document.getElementById(selectId + 'SelectTriggerText');
+    const dropdown = document.getElementById(selectId + 'SelectDropdown');
+    const searchInput = document.getElementById(selectId + 'SelectSearch');
+    const optionsList = document.getElementById(selectId + 'SelectOptionsList');
+
+    if (!realSelect || !wrap || !trigger || !triggerText || !dropdown || !searchInput || !optionsList) {
+      return null;
+    }
+
+    const hideHoverCard = () => {
+      const card = getOrCreatePartyHoverCard();
+      card.style.display = 'none';
+    };
+
+    const updateTriggerText = () => {
+      const selectedOpt = realSelect.options[realSelect.selectedIndex];
+      if (selectedOpt && selectedOpt.value) {
+        triggerText.textContent = selectedOpt.textContent.trim();
+        triggerText.style.color = 'var(--slate-800)';
+      } else {
+        triggerText.textContent = placeholderText;
+        triggerText.style.color = 'var(--slate-400)';
+      }
+    };
+
+    // Hover on trigger box itself when party is selected
+    trigger.addEventListener('mouseenter', () => {
+      if (dropdown.style.display === 'flex') return;
+      const partyId = realSelect.value;
+      if (!partyId) return;
+      const party = findPartyById(partyId, partyType);
+      if (party) {
+        positionAndShowPartyHoverCard(trigger, party, partyType);
+      }
+    });
+
+    trigger.addEventListener('mouseleave', () => {
+      hideHoverCard();
+    });
+
+    const populateList = (filter = '') => {
+      optionsList.innerHTML = '';
+      const query = filter.toLowerCase().trim();
+
+      Array.from(realSelect.options).forEach((opt) => {
+        if (!opt.value) return;
+
+        const partyId = opt.value;
+        const party = findPartyById(partyId, partyType);
+
+        const text = opt.textContent.trim();
+        const aliasStr = party && Array.isArray(party.aliases) ? party.aliases.join(' ') : '';
+        const gstinStr = party && party.gstin ? party.gstin : '';
+        const panStr = party && party.pan ? party.pan : '';
+        const searchCorpus = `${text} ${aliasStr} ${gstinStr} ${panStr}`.toLowerCase();
+
+        if (query && !searchCorpus.includes(query)) {
+          return;
+        }
+
+        const isSelected = (realSelect.value === opt.value);
+        const item = document.createElement('div');
+        item.style.cssText = `
+          padding: 8px 12px;
+          font-size: 13px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: ${isSelected ? '700' : '500'};
+          background: ${isSelected ? 'var(--blue-50)' : 'transparent'};
+          color: ${isSelected ? 'var(--blue-700)' : 'var(--slate-700)'};
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          transition: background 0.15s ease;
+        `;
+
+        item.innerHTML = `
+          <div style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span>${party ? party.name : text}</span>
+            ${party && party.aliases && party.aliases.length > 0 ? `<span style="font-size: 11px; color: var(--blue-600); margin-left: 6px;">[A.K.A: ${party.aliases.join(', ')}]</span>` : ''}
+          </div>
+          ${party && party.gstin ? `<span style="font-size: 10px; color: #047857; background: #ecfdf5; padding: 1px 5px; border-radius: 4px; font-family: monospace; margin-left: 6px;">GSTIN</span>` : ''}
+        `;
+
+        item.addEventListener('mouseenter', () => {
+          if (!isSelected) item.style.background = 'var(--slate-50)';
+          if (!party) return;
+          positionAndShowPartyHoverCard(item, party, partyType);
+        });
+
+        item.addEventListener('mouseleave', () => {
+          if (!isSelected) item.style.background = 'transparent';
+          hideHoverCard();
+        });
+
+        item.addEventListener('click', () => {
+          realSelect.value = opt.value;
+          realSelect.dispatchEvent(new Event('change'));
+          updateTriggerText();
+          dropdown.style.display = 'none';
+          hideHoverCard();
+        });
+
+        optionsList.appendChild(item);
+      });
+
+      if (optionsList.children.length === 0) {
+        const isSales = (selectId === 'salesCustomer' || partyType.toLowerCase().includes('customer'));
+        const isPurch = (selectId === 'purchaseVendor' || partyType.toLowerCase().includes('vendor') || partyType.toLowerCase().includes('supplier'));
+
+        const emptyWrap = document.createElement('div');
+        emptyWrap.className = 'kya-party-empty-wrap';
+        emptyWrap.style.cssText = 'padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;';
+
+        const labelTxt = isSales ? 'No Customer Found' : (isPurch ? 'No Vendor Found' : `No ${partyType}s found`);
+        emptyWrap.innerHTML = `
+          <div style="font-size: 13px; font-weight: 600; color: var(--slate-500); margin-bottom: 2px;">
+            ${labelTxt}
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+            <button type="button" class="je-drop-create-item party-create-ledger-btn" style="width: 100%; justify-content: center;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Create Ledger</span>
+            </button>
+            <button type="button" class="je-drop-create-item party-create-entity-btn" style="width: 100%; justify-content: center; background: #f0fdf4; color: #16a34a; border-color: #bbf7d0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Create ${isSales ? 'Customer' : 'Supplier'}</span>
+            </button>
+          </div>
+        `;
+
+        const btnCreateLedger = emptyWrap.querySelector('.party-create-ledger-btn');
+        const btnCreateEntity = emptyWrap.querySelector('.party-create-entity-btn');
+
+        if (btnCreateLedger) {
+          btnCreateLedger.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropdown.style.display = 'none';
+            hideHoverCard();
+            const q = searchInput.value.trim();
+            if (typeof window.openMasterDeskCreateLedger === 'function') {
+              window.openMasterDeskCreateLedger({
+                initialName: q,
+                groupVal: isSales ? 'sg:sg-tr' : 'sg:sg-tp',
+                returnTab: isSales ? 'sales_voucher' : 'purchase_voucher',
+                selectId: selectId
+              });
+            }
+          });
+        }
+
+        if (btnCreateEntity) {
+          btnCreateEntity.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropdown.style.display = 'none';
+            hideHoverCard();
+            const q = searchInput.value.trim();
+            if (typeof window.openMasterDeskCreateParty === 'function') {
+              window.openMasterDeskCreateParty({
+                type: isSales ? 'customer' : 'supplier',
+                initialName: q,
+                returnTab: isSales ? 'sales_voucher' : 'purchase_voucher',
+                selectId: selectId
+              });
+            }
+          });
+        }
+
+        optionsList.appendChild(emptyWrap);
+      }
+    };
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = dropdown.style.display === 'flex';
+      hideHoverCard();
+      if (isOpen) {
+        dropdown.style.display = 'none';
+      } else {
+        dropdown.style.display = 'flex';
+        searchInput.value = '';
+        populateList();
+        setTimeout(() => searchInput.focus(), 50);
+      }
+    });
+
+    searchInput.addEventListener('input', () => {
+      populateList(searchInput.value);
+    });
+
+    dropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    dropdown.addEventListener('scroll', () => {
+      hideHoverCard();
+    });
+
+    const handleOutsideClick = (e) => {
+      if (!trigger.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+        hideHoverCard();
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    window.addEventListener('scroll', hideHoverCard, true);
+
+    realSelect.addEventListener('change', () => {
+      updateTriggerText();
+    });
+
+    updateTriggerText();
+    populateList();
+
+    return {
+      refresh: () => {
+        updateTriggerText();
+        populateList();
+      },
+      close: () => {
+        dropdown.style.display = 'none';
+        hideHoverCard();
+      }
+    };
+  }
+
+  window.positionAndShowPartyHoverCard = positionAndShowPartyHoverCard;
+  window.getPartyHoverPreviewHtml = getPartyHoverPreviewHtml;
+  window.initPartySearchableSelect = initPartySearchableSelect;
 
   function initCoaSearchableSelect(overlay) {
     initGenericSearchableSelect(overlay, 'coaMSubGroup', 'Select Sub Group');
@@ -1408,6 +1865,7 @@
       }
 
       close();
+      if (typeof window.syncStockGroupsToCoa === 'function') window.syncStockGroupsToCoa();
       renderChartPanel();
       refreshAllReports();
       triggerAutoBackup();
@@ -1445,6 +1903,9 @@
 
   // ── Main render ───────────────────────────────────────────────────
   function renderChartPanel() {
+    if (typeof window.syncStockGroupsToCoa === 'function') {
+      window.syncStockGroupsToCoa();
+    }
     injectChartStyles();
     const wrap = document.getElementById('chartWrap');
     if (!wrap) return;
@@ -1667,13 +2128,40 @@
         const isGl = ldg.type === 'group-ledger';
         showCoaDeleteConfirm(ldg, () => {
           // Delete group ledger AND its children
-          if (isGl) coaLedgers = coaLedgers.filter(l => l.glId !== id);
+          if (isGl) {
+            coaLedgers = coaLedgers.filter(l => l.glId !== id);
+            if (ldg.sgId && ldg.sgId.startsWith('sg-grp-')) {
+              const sgIdx = COA_SYS_SGS.findIndex(s => s.id === ldg.sgId);
+              if (sgIdx !== -1) COA_SYS_SGS.splice(sgIdx, 1);
+            }
+          }
           coaLedgers = coaLedgers.filter(l => l.id !== id);
+          if (typeof window.syncStockGroupsToCoa === 'function') window.syncStockGroupsToCoa();
           showToast(`${isGl ? 'Group Ledger' : 'Ledger'} "${ldg.name}" deleted.`, 'info');
           renderChartPanel();
           refreshAllReports();
           triggerAutoBackup();
         });
+      });
+    });
+
+    // Delete custom sub-group
+    wrap.querySelectorAll('[data-coa-del-sg]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const sgId = btn.dataset.coaDelSg;
+        const sg = COA_SYS_SGS.find(s => s.id === sgId);
+        if (!sg) return;
+        const confirmDel = confirm(`Are you sure you want to delete group "${sg.name}" and any ledgers inside it?`);
+        if (confirmDel) {
+          COA_SYS_SGS = COA_SYS_SGS.filter(s => s.id !== sgId && s.parent !== sgId);
+          if (typeof saveCoaSubGroups === 'function') saveCoaSubGroups();
+          coaLedgers = coaLedgers.filter(l => l.sgId !== sgId);
+          showToast(`Group "${sg.name}" deleted.`, 'info');
+          renderChartPanel();
+          refreshAllReports();
+          triggerAutoBackup();
+        }
       });
     });
 

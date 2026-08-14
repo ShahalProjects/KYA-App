@@ -631,7 +631,8 @@
     if (!bankArea) return;
 
     if (tab === 'details') {
-      renderAccountsView(bankArea);
+      if (actionsArea) actionsArea.innerHTML = '';
+      renderAccountsView(bankArea, null, actionsArea);
     } else if (tab === 'statement') {
       renderCashbookView(bankArea, null, actionsArea);
     } else if (tab === 'reconciliation') {
@@ -703,7 +704,8 @@
   // ===================================================================
   //  1. BANK ACCOUNT MANAGEMENT VIEW
   // ===================================================================
-  function renderAccountsView(target) {
+  function renderAccountsView(target, controls, actionsArea) {
+    if (actionsArea) actionsArea.innerHTML = '';
     syncBankAccounts();
     const accounts = window.KYA_STORE.bankAccounts || [];
 
@@ -2143,13 +2145,13 @@
                     <div style="font-weight: 600; color: var(--slate-800);">${ohEsc(line.description || '—')}</div>
                   </td>
                   <td class="num-val" style="color: ${amtColor}; text-align: right;">${amtDisplay}</td>
-                  <td style="width: 220px; position: relative;">
+                  <td style="width: 280px; position: relative;">
                     <button type="button" 
                             class="cl-recon-ledger-btn" 
                             data-index="${line.origIdx}"
                             data-account-id="${currentAcc.id}"
                             data-selected-id="${savedLedgerId}"
-                            style="width: 100%; height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; text-align: left; background: #fff; border: 1px solid var(--slate-300); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: ${savedLedger ? 'var(--slate-800)' : 'var(--slate-400)'}; transition: all 0.15s ease;">
+                            style="width: 100%; height: 36px; padding: 0 12px; font-size: 13px; font-weight: 600; text-align: left; background: #fff; border: 1px solid var(--slate-300); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: ${savedLedger ? 'var(--slate-800)' : 'var(--slate-400)'}; transition: all 0.15s ease;">
                       <span class="cl-recon-ledger-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         ${savedLedger ? ohEsc(savedLedger.name) : 'Select Ledger...'}
                       </span>
@@ -2268,74 +2270,95 @@
 
       // Actions in Blue Card header
       if (actionsArea) {
-        actionsArea.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 8px; position: relative;">
-            <button class="cl-card-btn" id="btnClUploadStatement" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">
-              Upload Statement
-            </button>
-            <div style="position: relative;">
-              <button class="cl-card-btn" id="btnClStmtMoreMenu" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:16px; border-radius:6px; cursor:pointer; font-weight: 800;" title="More Statement Options" type="button">
-                ⋮
+        if (isReconciliationMode) {
+          actionsArea.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" id="clSubTabReconSection" style="height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease; border: ${_clReconSubSection === 'reconciliation' ? 'none' : '1px solid rgba(255,255,255,0.35)'}; background: ${_clReconSubSection === 'reconciliation' ? '#ffffff' : 'rgba(255,255,255,0.18)'}; color: ${_clReconSubSection === 'reconciliation' ? '#1e40af' : '#ffffff'};">
+                Reconciliation <span style="background: ${_clReconSubSection === 'reconciliation' ? '#dbeafe' : 'rgba(255,255,255,0.25)'}; color: ${_clReconSubSection === 'reconciliation' ? '#1e40af' : '#ffffff'}; padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 800;">${unreconciledRows.length}</span>
               </button>
-              <!-- 3-Dot Dropdown Menu -->
-              <div id="clStmtDropdownMenu" style="display: none; position: absolute; right: 0; top: 38px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); width: 210px; z-index: 1000; overflow: hidden; font-family: Inter, sans-serif;">
-                <div style="padding: 6px 0;">
-                  <button type="button" id="clMenuToggleSelectMode" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; display: flex; align-items: center; gap: 10px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m9 12 2 2 4-4"/></svg>
-                    ${_clStatementSelectMode ? 'Exit Select Mode' : 'Select Entries'}
-                  </button>
-                  ${statementRows.length > 0 ? `
-                    <button type="button" id="clMenuDeleteSelected" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: ${_clStatementSelectedIndices.size > 0 ? '#dc2626' : '#94a3b8'}; cursor: ${_clStatementSelectedIndices.size > 0 ? 'pointer' : 'default'}; display: flex; align-items: center; gap: 10px;" ${_clStatementSelectedIndices.size === 0 ? 'disabled' : ''}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${_clStatementSelectedIndices.size > 0 ? '#dc2626' : '#94a3b8'}" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                      Delete Selected ${_clStatementSelectedIndices.size > 0 ? `(${_clStatementSelectedIndices.size})` : ''}
+              <button type="button" id="clSubTabConfirmSection" style="height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease; border: ${_clReconSubSection === 'confirmation' ? 'none' : '1px solid rgba(255,255,255,0.35)'}; background: ${_clReconSubSection === 'confirmation' ? '#ffffff' : 'rgba(255,255,255,0.18)'}; color: ${_clReconSubSection === 'confirmation' ? '#1e40af' : '#ffffff'};">
+                Confirmation <span style="background: ${_clReconSubSection === 'confirmation' ? '#dbeafe' : 'rgba(255,255,255,0.25)'}; color: ${_clReconSubSection === 'confirmation' ? '#1e40af' : '#ffffff'}; padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 800;">${confirmedRows.length}</span>
+              </button>
+            </div>
+          `;
+          actionsArea.querySelector('#clSubTabReconSection')?.addEventListener('click', () => {
+            _clReconSubSection = 'reconciliation';
+            renderActiveSubtab();
+          });
+          actionsArea.querySelector('#clSubTabConfirmSection')?.addEventListener('click', () => {
+            _clReconSubSection = 'confirmation';
+            renderActiveSubtab();
+          });
+        } else {
+          actionsArea.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; position: relative;">
+              <button class="cl-card-btn" id="btnClUploadStatement" style="padding: 0 12px; height: 32px; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:12.5px; border-radius:6px; cursor:pointer;">
+                Upload Statement
+              </button>
+              <div style="position: relative;">
+                <button class="cl-card-btn" id="btnClStmtMoreMenu" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.15); color:#fff; font-size:16px; border-radius:6px; cursor:pointer; font-weight: 800;" title="More Statement Options" type="button">
+                  ⋮
+                </button>
+                <!-- 3-Dot Dropdown Menu -->
+                <div id="clStmtDropdownMenu" style="display: none; position: absolute; right: 0; top: 38px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); width: 210px; z-index: 1000; overflow: hidden; font-family: Inter, sans-serif;">
+                  <div style="padding: 6px 0;">
+                    <button type="button" id="clMenuToggleSelectMode" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m9 12 2 2 4-4"/></svg>
+                      ${_clStatementSelectMode ? 'Exit Select Mode' : 'Select Entries'}
                     </button>
-                    <div style="height: 1px; background: #f1f5f9; margin: 4px 0;"></div>
-                    <button type="button" id="clMenuDeleteAll" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #dc2626; cursor: pointer; display: flex; align-items: center; gap: 10px;">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                      Clear All Statement
-                    </button>
-                  ` : ''}
+                    ${statementRows.length > 0 ? `
+                      <button type="button" id="clMenuDeleteSelected" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: ${_clStatementSelectedIndices.size > 0 ? '#dc2626' : '#94a3b8'}; cursor: ${_clStatementSelectedIndices.size > 0 ? 'pointer' : 'default'}; display: flex; align-items: center; gap: 10px;" ${_clStatementSelectedIndices.size === 0 ? 'disabled' : ''}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${_clStatementSelectedIndices.size > 0 ? '#dc2626' : '#94a3b8'}" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        Delete Selected ${_clStatementSelectedIndices.size > 0 ? `(${_clStatementSelectedIndices.size})` : ''}
+                      </button>
+                      <div style="height: 1px; background: #f1f5f9; margin: 4px 0;"></div>
+                      <button type="button" id="clMenuDeleteAll" class="cl-dropdown-item" style="width: 100%; text-align: left; padding: 9px 16px; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #dc2626; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        Clear All Statement
+                      </button>
+                    ` : ''}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        `;
-        document.getElementById('btnClUploadStatement')?.addEventListener('click', () => {
-          showUploadStatementWizard();
-        });
-
-        const moreBtn = document.getElementById('btnClStmtMoreMenu');
-        const dropdownMenu = document.getElementById('clStmtDropdownMenu');
-        if (moreBtn && dropdownMenu) {
-          moreBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+          `;
+          document.getElementById('btnClUploadStatement')?.addEventListener('click', () => {
+            showUploadStatementWizard();
           });
-          document.addEventListener('click', (e) => {
-            if (!moreBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
-              dropdownMenu.style.display = 'none';
+
+          const moreBtn = document.getElementById('btnClStmtMoreMenu');
+          const dropdownMenu = document.getElementById('clStmtDropdownMenu');
+          if (moreBtn && dropdownMenu) {
+            moreBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+            });
+            document.addEventListener('click', (e) => {
+              if (!moreBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.style.display = 'none';
+              }
+            });
+          }
+
+          document.getElementById('clMenuToggleSelectMode')?.addEventListener('click', () => {
+            _clStatementSelectMode = !_clStatementSelectMode;
+            if (!_clStatementSelectMode) _clStatementSelectedIndices.clear();
+            if (dropdownMenu) dropdownMenu.style.display = 'none';
+            renderActiveSubtab();
+          });
+
+          document.getElementById('clMenuDeleteSelected')?.addEventListener('click', () => {
+            if (dropdownMenu) dropdownMenu.style.display = 'none';
+            if (_clStatementSelectedIndices.size > 0) {
+              confirmDeleteStatementEntries(Array.from(_clStatementSelectedIndices), currentAcc.id, false);
             }
           });
+
+          document.getElementById('clMenuDeleteAll')?.addEventListener('click', () => {
+            if (dropdownMenu) dropdownMenu.style.display = 'none';
+            confirmDeleteStatementEntries(statementRows.map(r => r.origIdx), currentAcc.id, true);
+          });
         }
-
-        document.getElementById('clMenuToggleSelectMode')?.addEventListener('click', () => {
-          _clStatementSelectMode = !_clStatementSelectMode;
-          if (!_clStatementSelectMode) _clStatementSelectedIndices.clear();
-          if (dropdownMenu) dropdownMenu.style.display = 'none';
-          renderActiveSubtab();
-        });
-
-        document.getElementById('clMenuDeleteSelected')?.addEventListener('click', () => {
-          if (dropdownMenu) dropdownMenu.style.display = 'none';
-          if (_clStatementSelectedIndices.size > 0) {
-            confirmDeleteStatementEntries(Array.from(_clStatementSelectedIndices), currentAcc.id, false);
-          }
-        });
-
-        document.getElementById('clMenuDeleteAll')?.addEventListener('click', () => {
-          if (dropdownMenu) dropdownMenu.style.display = 'none';
-          confirmDeleteStatementEntries(statementRows.map(r => r.origIdx), currentAcc.id, true);
-        });
       }
 
       function confirmDeleteStatementEntries(indicesToDelete, bankId, isAll) {
@@ -2520,45 +2543,45 @@
       const existingContainer = document.getElementById('clStmtContainer');
       if (existingContainer) {
           // Update stats
-          if (document.getElementById('clStmtOpeningBalVal')) document.getElementById('clStmtOpeningBalVal').innerHTML = fmtAmt(periodOpeningBal);
-          if (document.getElementById('clStmtDebitedBalVal')) {
-            const el = document.getElementById('clStmtDebitedBalVal');
-            el.innerHTML = fmtAmt(periodDebitedBal);
-            el.style.color = 'var(--red-600)';
+          const statsEl = existingContainer.querySelector('.recon-stats');
+          if (isReconciliationMode) {
+            if (statsEl) statsEl.style.display = 'none';
+          } else {
+            if (statsEl) statsEl.style.display = 'grid';
+            if (document.getElementById('clStmtOpeningBalVal')) document.getElementById('clStmtOpeningBalVal').innerHTML = fmtAmt(periodOpeningBal);
+            if (document.getElementById('clStmtDebitedBalVal')) {
+              const el = document.getElementById('clStmtDebitedBalVal');
+              el.innerHTML = fmtAmt(periodDebitedBal);
+              el.style.color = 'var(--red-600)';
+            }
+            if (document.getElementById('clStmtCreditedBalVal')) {
+              const el = document.getElementById('clStmtCreditedBalVal');
+              el.innerHTML = fmtAmt(periodCreditedBal);
+              el.style.color = 'var(--emerald-600)';
+            }
+            if (document.getElementById('clStmtClosingBalVal')) document.getElementById('clStmtClosingBalVal').innerHTML = fmtAmt(periodClosingBal);
           }
-          if (document.getElementById('clStmtCreditedBalVal')) {
-            const el = document.getElementById('clStmtCreditedBalVal');
-            el.innerHTML = fmtAmt(periodCreditedBal);
-            el.style.color = 'var(--emerald-600)';
-          }
-          if (document.getElementById('clStmtClosingBalVal')) document.getElementById('clStmtClosingBalVal').innerHTML = fmtAmt(periodClosingBal);
 
           // Update entries count
           document.getElementById('clStmtShowingCount').textContent = `Showing ${displayRows.length} of ${statementRows.length} entries`;
 
-          // Update sub-section toggle buttons if in reconciliation mode
-          const reconSubSectionContainer = existingContainer.querySelector('#clSubTabReconSection')?.parentElement?.parentElement;
-          if (reconSubSectionContainer && isReconciliationMode) {
-            reconSubSectionContainer.innerHTML = `
-              <div style="display: flex; gap: 8px;">
-                <button type="button" id="clSubTabReconSection" class="btn ${_clReconSubSection === 'reconciliation' ? 'btn-primary' : 'btn-secondary'}" style="height: 36px; font-size: 13px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-                  Reconciliation <span style="background: ${_clReconSubSection === 'reconciliation' ? 'rgba(255,255,255,0.25)' : 'var(--slate-200)'}; color: ${_clReconSubSection === 'reconciliation' ? '#fff' : 'var(--slate-700)'}; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${unreconciledRows.length}</span>
+          // Update sub-section toggle buttons in header if in reconciliation mode
+          if (actionsArea && isReconciliationMode) {
+            actionsArea.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" id="clSubTabReconSection" style="height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease; border: ${_clReconSubSection === 'reconciliation' ? 'none' : '1px solid rgba(255,255,255,0.35)'}; background: ${_clReconSubSection === 'reconciliation' ? '#ffffff' : 'rgba(255,255,255,0.18)'}; color: ${_clReconSubSection === 'reconciliation' ? '#1e40af' : '#ffffff'};">
+                  Reconciliation <span style="background: ${_clReconSubSection === 'reconciliation' ? '#dbeafe' : 'rgba(255,255,255,0.25)'}; color: ${_clReconSubSection === 'reconciliation' ? '#1e40af' : '#ffffff'}; padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 800;">${unreconciledRows.length}</span>
                 </button>
-                <button type="button" id="clSubTabConfirmSection" class="btn ${_clReconSubSection === 'confirmation' ? 'btn-primary' : 'btn-secondary'}" style="height: 36px; font-size: 13px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-                  Confirmation <span style="background: ${_clReconSubSection === 'confirmation' ? 'rgba(255,255,255,0.25)' : 'var(--slate-200)'}; color: ${_clReconSubSection === 'confirmation' ? '#fff' : 'var(--slate-700)'}; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${confirmedRows.length}</span>
+                <button type="button" id="clSubTabConfirmSection" style="height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease; border: ${_clReconSubSection === 'confirmation' ? 'none' : '1px solid rgba(255,255,255,0.35)'}; background: ${_clReconSubSection === 'confirmation' ? '#ffffff' : 'rgba(255,255,255,0.18)'}; color: ${_clReconSubSection === 'confirmation' ? '#1e40af' : '#ffffff'};">
+                  Confirmation <span style="background: ${_clReconSubSection === 'confirmation' ? '#dbeafe' : 'rgba(255,255,255,0.25)'}; color: ${_clReconSubSection === 'confirmation' ? '#1e40af' : '#ffffff'}; padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 800;">${confirmedRows.length}</span>
                 </button>
               </div>
-              ${_clReconSubSection === 'confirmation' && confirmedRows.length > 0 ? `
-                <button type="button" id="clBtnPostAllConfirmed" class="btn btn-success" style="height: 36px; font-size: 13px; font-weight: 700; border-radius: 8px; padding: 0 18px; cursor: pointer;">
-                  Post All (${confirmedRows.length}) Journal Entries
-                </button>
-              ` : ''}
             `;
-            reconSubSectionContainer.querySelector('#clSubTabReconSection')?.addEventListener('click', () => {
+            actionsArea.querySelector('#clSubTabReconSection')?.addEventListener('click', () => {
               _clReconSubSection = 'reconciliation';
               renderActiveSubtab();
             });
-            reconSubSectionContainer.querySelector('#clSubTabConfirmSection')?.addEventListener('click', () => {
+            actionsArea.querySelector('#clSubTabConfirmSection')?.addEventListener('click', () => {
               _clReconSubSection = 'confirmation';
               renderActiveSubtab();
             });
@@ -2591,7 +2614,7 @@
                   <th style="width: 110px;">Date</th>
                   <th>Description</th>
                   <th style="text-align: right; width: 140px;">Amount</th>
-                  <th style="width: 220px;">Select Ledger</th>
+                  <th style="width: 280px;">Select Ledger</th>
                 `;
               }
             } else {
@@ -2663,24 +2686,7 @@
                 </div>
               </div>
 
-              ${isReconciliationMode ? `
-                <!-- Sub-section Toggle Tabs (Reconciliation vs Confirmation) -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; padding: 12px 16px;">
-                  <div style="display: flex; gap: 8px;">
-                    <button type="button" id="clSubTabReconSection" class="btn ${_clReconSubSection === 'reconciliation' ? 'btn-primary' : 'btn-secondary'}" style="height: 36px; font-size: 13px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-                      Reconciliation <span style="background: ${_clReconSubSection === 'reconciliation' ? 'rgba(255,255,255,0.25)' : 'var(--slate-200)'}; color: ${_clReconSubSection === 'reconciliation' ? '#fff' : 'var(--slate-700)'}; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${unreconciledRows.length}</span>
-                    </button>
-                    <button type="button" id="clSubTabConfirmSection" class="btn ${_clReconSubSection === 'confirmation' ? 'btn-primary' : 'btn-secondary'}" style="height: 36px; font-size: 13px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-                      Confirmation <span style="background: ${_clReconSubSection === 'confirmation' ? 'rgba(255,255,255,0.25)' : 'var(--slate-200)'}; color: ${_clReconSubSection === 'confirmation' ? '#fff' : 'var(--slate-700)'}; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${confirmedRows.length}</span>
-                    </button>
-                  </div>
-                  ${_clReconSubSection === 'confirmation' && confirmedRows.length > 0 ? `
-                    <button type="button" id="clBtnPostAllConfirmed" class="btn btn-success" style="height: 36px; font-size: 13px; font-weight: 700; border-radius: 8px; padding: 0 18px; cursor: pointer;">
-                      Post All (${confirmedRows.length}) Journal Entries
-                    </button>
-                  ` : ''}
-                </div>
-              ` : ''}
+
 
               <!-- Statement Filter Control Bar -->
               <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; padding: 12px 16px;">
@@ -2734,25 +2740,27 @@
                 </div>
               ` : ''}
 
-              <!-- Stats row -->
-              <div class="recon-stats" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; padding: 12px 16px;">
-                <div class="recon-stat-card">
-                  <span class="recon-stat-label">Opening Balance</span>
-                  <span class="recon-stat-val" id="clStmtOpeningBalVal">${fmtAmt(periodOpeningBal)}</span>
+              ${!isReconciliationMode ? `
+                <!-- Stats row -->
+                <div class="recon-stats" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; padding: 12px 16px;">
+                  <div class="recon-stat-card">
+                    <span class="recon-stat-label">Opening Balance</span>
+                    <span class="recon-stat-val" id="clStmtOpeningBalVal">${fmtAmt(periodOpeningBal)}</span>
+                  </div>
+                  <div class="recon-stat-card">
+                    <span class="recon-stat-label">Debited Balance</span>
+                    <span class="recon-stat-val" id="clStmtDebitedBalVal" style="color: var(--red-600);">${fmtAmt(periodDebitedBal)}</span>
+                  </div>
+                  <div class="recon-stat-card">
+                    <span class="recon-stat-label">Credited Balance</span>
+                    <span class="recon-stat-val" id="clStmtCreditedBalVal" style="color: var(--emerald-600);">${fmtAmt(periodCreditedBal)}</span>
+                  </div>
+                  <div class="recon-stat-card">
+                    <span class="recon-stat-label">Closing Balance</span>
+                    <span class="recon-stat-val" id="clStmtClosingBalVal" style="color:var(--blue-700);">${fmtAmt(periodClosingBal)}</span>
+                  </div>
                 </div>
-                <div class="recon-stat-card">
-                  <span class="recon-stat-label">Debited Balance</span>
-                  <span class="recon-stat-val" id="clStmtDebitedBalVal" style="color: var(--red-600);">${fmtAmt(periodDebitedBal)}</span>
-                </div>
-                <div class="recon-stat-card">
-                  <span class="recon-stat-label">Credited Balance</span>
-                  <span class="recon-stat-val" id="clStmtCreditedBalVal" style="color: var(--emerald-600);">${fmtAmt(periodCreditedBal)}</span>
-                </div>
-                <div class="recon-stat-card">
-                  <span class="recon-stat-label">Closing Balance</span>
-                  <span class="recon-stat-val" id="clStmtClosingBalVal" style="color:var(--blue-700);">${fmtAmt(periodClosingBal)}</span>
-                </div>
-              </div>
+              ` : ''}
 
               <div style="border: 1.5px solid var(--slate-200); border-radius: 12px; max-height: 70vh; overflow-y: auto; background: #fff;">
                 <table class="cl-table">
@@ -2774,7 +2782,7 @@
                           <th style="width: 110px;">Date</th>
                           <th>Description</th>
                           <th style="text-align: right; width: 140px;">Amount</th>
-                          <th style="width: 220px;">Select Ledger</th>
+                          <th style="width: 280px;">Select Ledger</th>
                         `}
                       ` : `
                         <th style="width: 110px;">Date</th>
@@ -2929,30 +2937,45 @@
           const popover = document.createElement('div');
           popover.id = 'clReconLedgerPopover';
           popover.dataset.btnIndex = origIdx;
+          popover.tabIndex = -1;
           popover.style.cssText = `
-            position: absolute;
+            position: fixed;
             z-index: 10000;
-            width: 250px;
+            width: 320px;
             background: #ffffff;
-            border: 1.5px solid var(--slate-200);
-            border-radius: 10px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-            padding: 8px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            box-shadow: 0 20px 35px -5px rgba(15, 23, 42, 0.2), 0 10px 15px -5px rgba(15, 23, 42, 0.1);
+            padding: 10px;
             font-family: Inter, sans-serif;
+            box-sizing: border-box;
+            outline: none;
           `;
 
           popover.innerHTML = `
-            <div style="position: sticky; top: 0; background: #ffffff; z-index: 10; padding-bottom: 6px; margin-bottom: 2px; border-bottom: 1px solid var(--slate-100);">
-              <div style="position: relative;">
-                <input type="text" id="clReconSearchInput" placeholder="Search ledger account..." style="width: 100%; height: 30px; padding: 0 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--slate-300); box-sizing: border-box; outline: none; font-family: inherit;" />
+            <div style="position: sticky; top: 0; background: #ffffff; z-index: 10; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid #f1f5f9;">
+              <div id="clTypeaheadBadge" style="display: none; align-items: center; justify-content: space-between; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 8px; margin-bottom: 6px; font-size: 11.5px; font-weight: 600; color: #1d4ed8;">
+                <span style="display: flex; align-items: center; gap: 4px;">🔍 Match: "<span id="clTypeaheadText" style="font-weight: 700;"></span>"</span>
+                <span style="font-size: 10px; color: #64748b; font-weight: 400;">(typing...)</span>
+              </div>
+              <div id="clReconCategoryTabs" style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none;">
+                <button type="button" class="cl-cat-tab active" data-cat="all" style="padding: 4px 10px; font-size: 11.5px; font-weight: 700; border-radius: 6px; border: 1px solid #2563eb; background: #eff6ff; color: #2563eb; cursor: pointer; white-space: nowrap;">All</button>
+                <button type="button" class="cl-cat-tab" data-cat="expenses" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; white-space: nowrap;">Expenses</button>
+                <button type="button" class="cl-cat-tab" data-cat="income" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; white-space: nowrap;">Income</button>
+                <button type="button" class="cl-cat-tab" data-cat="assets" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; white-space: nowrap;">Assets/Liab</button>
               </div>
             </div>
-            <div id="clReconLedgerList" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;">
+            <div id="clReconLedgerList" style="max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 2px;">
+            </div>
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; color: #64748b; font-weight: 500;">
+              <span>Type letters to search</span>
+              <span><kbd style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:3px; padding:1px 4px; font-size:9.5px;">↵ Enter</kbd> Select</span>
+              <span><kbd style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:3px; padding:1px 4px; font-size:9.5px;">Esc</kbd> Exit</span>
             </div>
           `;
 
           const btnRect = btn.getBoundingClientRect();
-          const popoverHeight = 235;
+          const popoverHeight = 280;
           const spaceBelow = window.innerHeight - btnRect.bottom;
           const spaceAbove = btnRect.top;
 
@@ -2966,14 +2989,16 @@
             popover.style.top = `${Math.max(10, topPos)}px`;
           }
 
-          const leftPos = Math.max(10, Math.min(btnRect.left, window.innerWidth - 265));
+          const leftPos = Math.max(10, Math.min(btnRect.left, window.innerWidth - 335));
           popover.style.left = `${leftPos}px`;
 
           document.body.appendChild(popover);
 
-          const searchInp = popover.querySelector('#clReconSearchInput');
           const listContainer = popover.querySelector('#clReconLedgerList');
           let activeIndex = 0;
+          let currentCatFilter = 'all';
+          let typeaheadQuery = '';
+          let typeaheadTimer = null;
 
           function updateHighlight() {
             const opts = Array.from(listContainer.querySelectorAll('.cl-recon-opt'));
@@ -2984,39 +3009,91 @@
             opts.forEach((opt, idx) => {
               const isSel = String(opt.dataset.id) === String(currentSelectedId);
               if (idx === activeIndex) {
-                opt.style.background = '#dbeafe';
-                opt.style.outline = '1.5px solid #2563eb';
-                opt.style.color = '#1e40af';
+                opt.style.background = isSel ? '#dbeafe' : '#f1f5f9';
+                opt.style.border = '1px solid #2563eb';
                 opt.scrollIntoView({ block: 'nearest' });
               } else {
-                opt.style.outline = 'none';
+                opt.style.border = isSel ? '1px solid #bfdbfe' : '1px solid transparent';
                 opt.style.background = isSel ? '#eff6ff' : 'transparent';
-                opt.style.color = isSel ? '#2563eb' : 'var(--slate-700)';
               }
             });
           }
 
-          function renderOptions(filterQuery = '') {
+          function renderOptions(filterQuery = '', cat = currentCatFilter) {
             const query = filterQuery.toLowerCase().trim();
-            const filtered = allLedgers.filter(l => l.name.toLowerCase().includes(query));
+            currentCatFilter = cat;
+
+            let categoryFiltered = allLedgers;
+            if (cat === 'expenses') {
+              categoryFiltered = allLedgers.filter(l => {
+                const g = (getLedgerGroup(l.id) || '').toLowerCase();
+                return g.includes('expense') || g.includes('purchase') || g.includes('direct') || g.includes('indirect') || g.includes('cost');
+              });
+            } else if (cat === 'income') {
+              categoryFiltered = allLedgers.filter(l => {
+                const g = (getLedgerGroup(l.id) || '').toLowerCase();
+                return g.includes('income') || g.includes('sale') || g.includes('revenue') || g.includes('gain');
+              });
+            } else if (cat === 'assets') {
+              categoryFiltered = allLedgers.filter(l => {
+                const g = (getLedgerGroup(l.id) || '').toLowerCase();
+                return g.includes('asset') || g.includes('liab') || g.includes('bank') || g.includes('capital') || g.includes('loan') || g.includes('duty') || g.includes('tax');
+              });
+            }
+
+            const filtered = categoryFiltered.filter(l => {
+              if (!query) return true;
+              const nameMatch = l.name.toLowerCase().includes(query);
+              const groupMatch = (getLedgerGroup(l.id) || '').toLowerCase().includes(query);
+              return nameMatch || groupMatch;
+            });
+
+            // Sort so exact/prefix matches come first
+            if (query) {
+              filtered.sort((a, b) => {
+                const aStart = a.name.toLowerCase().startsWith(query);
+                const bStart = b.name.toLowerCase().startsWith(query);
+                if (aStart && !bStart) return -1;
+                if (!aStart && bStart) return 1;
+                return 0;
+              });
+            }
 
             let html = `
-              <div class="cl-recon-opt" data-id="" style="padding: 6px 10px; font-size: 12px; font-weight: 500; color: var(--slate-400); border-radius: 6px; cursor: pointer; transition: background 0.1s;">
-                -- None / Clear --
+              <div class="cl-recon-opt" data-id="" style="padding: 7px 10px; font-size: 12px; font-weight: 600; color: #64748b; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px dashed #cbd5e1; margin-bottom: 2px;">
+                <span style="font-size: 13px; color: #94a3b8;">↺</span>
+                <span>-- Clear / Unmap --</span>
               </div>
             `;
 
             if (filtered.length > 0) {
               filtered.forEach(l => {
                 const isSel = String(l.id) === String(currentSelectedId);
+                const groupName = getLedgerGroup(l.id);
+
                 html += `
-                  <div class="cl-recon-opt" data-id="${l.id}" style="padding: 6px 10px; font-size: 12px; font-weight: 600; color: ${isSel ? '#2563eb' : 'var(--slate-700)'}; background: ${isSel ? '#eff6ff' : 'transparent'}; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
-                    <span>${ohEsc(l.name)}</span>
+                  <div class="cl-recon-opt" data-id="${l.id}" style="padding: 8px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.1s ease; border: 1px solid ${isSel ? '#bfdbfe' : 'transparent'}; background: ${isSel ? '#eff6ff' : 'transparent'};">
+                    <div style="display: flex; flex-direction: column; gap: 1.5px; min-width: 0; padding-right: 8px;">
+                      <div style="font-size: 12.5px; font-weight: 600; color: ${isSel ? '#1d4ed8' : '#1e293b'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${ohEsc(l.name)}
+                      </div>
+                      ${groupName ? `
+                        <div style="font-size: 10.5px; font-weight: 500; color: ${isSel ? '#3b82f6' : '#64748b'}; display: flex; align-items: center; gap: 4px;">
+                          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${isSel ? '#3b82f6' : '#94a3b8'}; flex-shrink: 0;"></span>
+                          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ohEsc(groupName)}</span>
+                        </div>
+                      ` : ''}
+                    </div>
+                    ${isSel ? `
+                      <div style="background: #2563eb; color: #fff; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">
+                        ✓
+                      </div>
+                    ` : ''}
                   </div>
                 `;
               });
             } else {
-              html += `<div style="padding: 8px 10px; font-size: 12px; color: var(--slate-400); text-align: center;">No matching ledgers</div>`;
+              html += `<div style="padding: 16px 10px; font-size: 12px; color: #94a3b8; text-align: center;">No matching ledgers</div>`;
             }
 
             listContainer.innerHTML = html;
@@ -3031,19 +3108,45 @@
               });
             });
 
-            // Highlight first matching result when searching, or -- None / Clear -- when empty
-            activeIndex = (query !== '' && filtered.length > 0) ? 1 : 0;
+            activeIndex = (query && filtered.length > 0) ? 1 : 0;
             updateHighlight();
           }
 
-          renderOptions();
-          searchInp.focus();
+          function updateTypeaheadFilter() {
+            const badge = popover.querySelector('#clTypeaheadBadge');
+            const txtSpan = popover.querySelector('#clTypeaheadText');
+            if (badge && txtSpan) {
+              if (typeaheadQuery) {
+                txtSpan.textContent = typeaheadQuery;
+                badge.style.display = 'flex';
+              } else {
+                badge.style.display = 'none';
+              }
+            }
+            renderOptions(typeaheadQuery);
+          }
 
-          searchInp.addEventListener('input', (ev) => {
-            renderOptions(ev.target.value);
+          popover.querySelectorAll('.cl-cat-tab').forEach(tabBtn => {
+            tabBtn.addEventListener('click', () => {
+              popover.querySelectorAll('.cl-cat-tab').forEach(t => {
+                t.style.border = '1px solid #e2e8f0';
+                t.style.background = '#fff';
+                t.style.color = '#64748b';
+                t.style.fontWeight = '600';
+              });
+              tabBtn.style.border = '1px solid #2563eb';
+              tabBtn.style.background = '#eff6ff';
+              tabBtn.style.color = '#2563eb';
+              tabBtn.style.fontWeight = '700';
+
+              renderOptions(typeaheadQuery, tabBtn.dataset.cat);
+            });
           });
 
-          searchInp.addEventListener('keydown', (ev) => {
+          renderOptions();
+          popover.focus();
+
+          popover.addEventListener('keydown', (ev) => {
             const opts = Array.from(listContainer.querySelectorAll('.cl-recon-opt'));
             if (ev.key === 'ArrowDown') {
               ev.preventDefault();
@@ -3062,13 +3165,28 @@
               if (opts.length > 0 && activeIndex >= 0 && activeIndex < opts.length) {
                 selectOptionAndAdvance(opts[activeIndex].dataset.id, 'next');
               }
-            } else if (ev.key === 'Backspace' && searchInp.value === '') {
-              ev.preventDefault();
-              selectOptionAndAdvance('', 'prev');
             } else if (ev.key === 'Escape') {
               ev.preventDefault();
               popover.remove();
               btn.focus();
+            } else if (ev.key === 'Backspace') {
+              ev.preventDefault();
+              if (typeaheadQuery.length > 0) {
+                typeaheadQuery = typeaheadQuery.slice(0, -1);
+                updateTypeaheadFilter();
+              } else {
+                selectOptionAndAdvance('', 'prev');
+              }
+            } else if (ev.key.length === 1 && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+              ev.preventDefault();
+              typeaheadQuery += ev.key.toLowerCase();
+              updateTypeaheadFilter();
+
+              clearTimeout(typeaheadTimer);
+              typeaheadTimer = setTimeout(() => {
+                typeaheadQuery = '';
+                updateTypeaheadFilter();
+              }, 2000);
             }
           });
 

@@ -7,14 +7,81 @@
   let _ohEmpCtr     = 1;
   let _ohBudgetCtr  = 1;
 
+  // ── Global data pre-init ── (prevents TypeError when panel-init functions
+  // are called from routing before async data restore has completed)
+  if (!window.coaLedgers) window.coaLedgers = [];
+  if (!window.KYA_STORE)  window.KYA_STORE  = {
+    salesVouchers: [], salesVouchersDrafts: [],
+    salesInvoiceCtr: 1, salesReturnCtr: 1, salesOrderCtr: 1,
+    purchaseVouchers: [], purchaseVouchersDrafts: [],
+    purchaseInvoiceCtr: 1,
+    customers: [],
+    suppliers: []
+  };
+  window.KYA_STORE.customers = window.KYA_STORE.customers || [];
+  window.KYA_STORE.suppliers = window.KYA_STORE.suppliers || [];
+
+  function getKyaCustomers() {
+    if (!window.KYA_STORE) window.KYA_STORE = {};
+    if (!Array.isArray(window.KYA_STORE.customers)) window.KYA_STORE.customers = [];
+    return window.KYA_STORE.customers;
+  }
+
+  function getKyaSuppliers() {
+    if (!window.KYA_STORE) window.KYA_STORE = {};
+    if (!Array.isArray(window.KYA_STORE.suppliers)) window.KYA_STORE.suppliers = [];
+    return window.KYA_STORE.suppliers;
+  }
+
+  window.getKyaCustomers = getKyaCustomers;
+  window.getKyaSuppliers = getKyaSuppliers;
+
   /* ======================
      LANDING → APP
   ====================== */
-  const landing     = document.getElementById('landing');
-  const app         = document.getElementById('app');
-  const loadingFill = document.getElementById('loadingFill');
-  const loadingPct  = document.getElementById('loadingPct');
-  const progressBar = document.getElementById('landingProgressBar');
+  const landing         = document.getElementById('landing');
+  const app             = document.getElementById('app');
+  const loadingFill     = document.getElementById('loadingFill');
+  const loadingPct      = document.getElementById('loadingPct');
+  const progressBar     = document.getElementById('landingProgressBar');
+  const landingSubtitleA = document.getElementById('landingSubtitleA');
+  const landingSubtitleB = document.getElementById('landingSubtitleB');
+
+  const PHRASE_SEQUENCE = [
+    { minPct: 0,  text: "Keep Simple",       isFinal: false },
+    { minPct: 28, text: "Keep Professional", isFinal: false },
+    { minPct: 56, text: "Keep Accurate",     isFinal: false },
+    { minPct: 82, text: "KYA Remembers",     isFinal: true }
+  ];
+
+  let currentPhraseStep = 0;
+  let activeLayerIsA = true;
+
+  function transitionToPhrase(stepObj) {
+    const currentActive = activeLayerIsA ? landingSubtitleA : landingSubtitleB;
+    const nextActive    = activeLayerIsA ? landingSubtitleB : landingSubtitleA;
+
+    if (!currentActive || !nextActive) return;
+
+    // 1. Configure next layer content and styles
+    nextActive.textContent = stepObj.text;
+    if (stepObj.isFinal) {
+      nextActive.classList.add('final-glow');
+    } else {
+      nextActive.classList.remove('final-glow');
+    }
+
+    // 2. Trigger cross-fade exit animation on current layer
+    currentActive.classList.remove('active');
+    currentActive.classList.add('exit');
+
+    // 3. Trigger cross-fade entry animation on next layer
+    nextActive.classList.remove('exit');
+    nextActive.classList.add('active');
+
+    // 4. Toggle active layer state
+    activeLayerIsA = !activeLayerIsA;
+  }
 
   function enterApp() {
     landing.classList.add('exit');
@@ -25,39 +92,72 @@
     }, 680);
   }
 
-  // Animate progress from 0 → 100 over ~2.6s (starts after 1.8s CSS delay)
+  // Animate progress from 0 → 100 over ~3.6s
   let pct = 0;
-  const totalMs   = 2600;
+  const totalMs   = 3600;
   const stepMs    = 40;
   const increment = 100 / (totalMs / stepMs);
 
   function tickLoader() {
-    pct = Math.min(100, pct + increment + (Math.random() * increment * 0.4));
+    pct = Math.min(100, pct + increment + (Math.random() * increment * 0.35));
     const rounded = Math.floor(pct);
     loadingFill.style.width = rounded + '%';
     loadingPct.textContent  = rounded + '%';
     progressBar.setAttribute('aria-valuenow', rounded);
+
+    // Sync phrase step based on progress percentage
+    let targetStepIndex = 0;
+    for (let i = PHRASE_SEQUENCE.length - 1; i >= 0; i--) {
+      if (rounded >= PHRASE_SEQUENCE[i].minPct) {
+        targetStepIndex = i;
+        break;
+      }
+    }
+    if (targetStepIndex !== currentPhraseStep) {
+      currentPhraseStep = targetStepIndex;
+      transitionToPhrase(PHRASE_SEQUENCE[targetStepIndex]);
+    }
 
     if (pct < 100) {
       setTimeout(tickLoader, stepMs);
     } else {
       loadingFill.style.width = '100%';
       loadingPct.textContent  = '100%';
-      // Brief pause at 100% then open the app
-      setTimeout(enterApp, 420);
+      // Pause at 100% so user reads "KYA Remembers" before entering app
+      setTimeout(enterApp, 700);
     }
   }
 
-  // Start the loader after the CSS fade-in animation completes (1.8s delay)
+  // Start the loader after the CSS fade-in animation completes (1.85s delay)
   setTimeout(tickLoader, 1850);
 
 
   /* ======================
-     DATE IN TOPBAR
+     DATE & TIME IN SIDEBAR
   ====================== */
-  const topbarDate = document.getElementById('topbarDate');
-  const now = new Date();
-  topbarDate.textContent = now.toLocaleDateString('en-US', { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+  function updateSidebarClock() {
+    const topbarDate = document.getElementById('topbarDate');
+    if (!topbarDate) return;
+
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const dateFormatted = `${day}-${month}-${year}`;
+    const timeFormatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+    const dateSpan = document.getElementById('sidebarDateText');
+    const timeSpan = document.getElementById('sidebarTimeText');
+
+    if (dateSpan) dateSpan.textContent = dateFormatted;
+    if (timeSpan) timeSpan.textContent = timeFormatted;
+    if (!dateSpan && !timeSpan) {
+      topbarDate.textContent = `${dateFormatted} ${timeFormatted}`;
+    }
+  }
+
+  updateSidebarClock();
+  setInterval(updateSidebarClock, 1000);
 
 
   /* ======================
@@ -113,6 +213,8 @@
       }
     }
     if (nameEl)   nameEl.textContent   = displayName;
+    const dbCoEl = document.getElementById('dbCompanyName');
+    if (dbCoEl) dbCoEl.textContent = displayName;
   }
 
   function openCompanyModal() {
@@ -275,11 +377,21 @@
     onehub:  panelOneHub,
     settings: panelSettings,
     sales_voucher: document.getElementById('panel-sales-voucher'),
+    purchase_voucher: document.getElementById('panel-purchase-voucher'),
     company: document.getElementById('panel-company'),
     cashline: document.getElementById('panel-cashline'),
+    stock_hub: document.getElementById('panel-stock-hub'),
+    master_desk: document.getElementById('panel-master-desk'),
   };
 
   const TAB_DEFS = {
+    master_desk: { 
+      id: 'master_desk', 
+      label: 'Master Desk', 
+      panelId: 'panel-master-desk', 
+      navId: 'nav-master-desk',
+      icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 8h14M8 8v9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`
+    },
     journal: { 
       id: 'journal', 
       label: 'New Journal Entry', 
@@ -343,6 +455,13 @@
       navId: 'nav-sales',
       icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><path d="M3 3h2l.4 2M5.4 5h11.6l-1.3 7H6.2L4.5 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="14" cy="16" r="1.5" fill="currentColor"/></svg>`
     },
+    purchase_voucher: { 
+      id: 'purchase_voucher', 
+      label: 'New Purchase', 
+      panelId: 'panel-purchase-voucher', 
+      navId: 'nav-purchase',
+      icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><path d="M4 6h12l1.5 11H2.5L4 6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 8V5a3 3 0 016 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`
+    },
     company: {
       id: 'company',
       label: 'Company Details',
@@ -357,6 +476,13 @@
       navId: 'nav-cashline',
       icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><rect x="2" y="5" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="11" r="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M2 9h16" stroke="currentColor" stroke-width="1.6"/></svg>`
     },
+    stock_hub: {
+      id: 'stock_hub',
+      label: 'Stock Hub',
+      panelId: 'panel-stock-hub',
+      navId: 'nav-stock-hub',
+      icon: `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" style="display:block;"><path d="M10 2.5L3.5 6.25V13.75L10 17.5L16.5 13.75V6.25L10 2.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 2.5V17.5" stroke="currentColor" stroke-width="1.4"/><path d="M3.5 6.25L10 10L16.5 6.25" stroke="currentColor" stroke-width="1.4"/></svg>`
+    },
   };
 
   let openTabs = [];
@@ -365,30 +491,42 @@
   // ── ROUTING SYSTEM ──────────────────────────────────────────────────
   const ROUTE_SECTIONS = {
     dashboard: { tabId: null, navId: 'nav-dashboard' },
+    welcome:   { tabId: null, navId: 'nav-dashboard' },
+    master_desk: { tabId: 'master_desk' },
     journal:   { tabId: 'journal' },
     voucher_desk: { tabId: 'voucher_desk' },
     chart:     { tabId: 'chart' },
+    ledgers:   { tabId: 'chart' },
+    ledger:    { tabId: 'chart' },
     balance:   { tabId: 'balance' },
     pnl:       { tabId: 'pnl' },
+    reports:   { tabId: 'pnl' },
     trial:     { tabId: 'trial' },
     onehub:    { tabId: 'onehub' },
     settings:  { tabId: 'settings' },
+    sales:     { tabId: 'sales_voucher' },
     sales_voucher: { tabId: 'sales_voucher' },
+    purchase:  { tabId: 'purchase_voucher' },
+    purchase_voucher: { tabId: 'purchase_voucher' },
     company:   { tabId: 'company' },
     cashline:  { tabId: 'cashline' },
+    stock_hub: { tabId: 'stock_hub' },
   };
 
   const NAV_ID_TO_ROUTE = {
     'nav-dashboard': 'dashboard',
+    'nav-master-desk': 'master_desk',
     'nav-voucher-desk': 'voucher_desk',
     'nav-chart': 'chart',
     'nav-trial': 'trial',
     'nav-pnl': 'pnl',
     'nav-balance': 'balance',
+    'nav-stock-hub': 'stock_hub',
     'nav-onehub': 'onehub',
     'nav-settings': 'settings',
     'nav-journal': 'journal',
     'nav-sales': 'sales_voucher',
+    'nav-purchase': 'purchase_voucher',
     'nav-cashline': 'cashline',
   };
 
@@ -448,16 +586,27 @@
     switchToActivePanel();
   }
 
-  function closeTab(tabId, event) {
-    if (event) event.stopPropagation();
+  function closeTab(tabId, event, fallbackTabId = null) {
+    if (event && event.stopPropagation) event.stopPropagation();
     const index = openTabs.indexOf(tabId);
-    if (index === -1) return;
+    if (index === -1) {
+      if (fallbackTabId) {
+        navigateTo(fallbackTabId);
+      }
+      return;
+    }
+    
+    if (tabId === 'master_desk' && typeof window.handleMasterDeskClosed === 'function') {
+      window.handleMasterDeskClosed();
+    }
     
     openTabs.splice(index, 1);
     
     let nextActiveTabId = activeTabId;
     if (activeTabId === tabId) {
-      if (openTabs.length > 0) {
+      if (fallbackTabId && (openTabs.includes(fallbackTabId) || TAB_DEFS[fallbackTabId])) {
+        nextActiveTabId = fallbackTabId;
+      } else if (openTabs.length > 0) {
         const nextActiveIndex = Math.min(index, openTabs.length - 1);
         nextActiveTabId = openTabs[nextActiveIndex];
       } else {
@@ -476,6 +625,10 @@
       switchToActivePanel();
     }
   }
+
+  window.openTab = openTab;
+  window.closeTab = closeTab;
+  window.navigateTo = navigateTo;
 
   function switchToActivePanel() {
     // Hide all panels
@@ -500,17 +653,49 @@
       }
 
       // Load panel specific data
-      if (activeTabId === 'journal') populateJeDepartments();
-      if (activeTabId === 'voucher_desk') renderVoucherDeskPanel();
-      if (activeTabId === 'chart') switchCoaTab(_coaActiveTab);
-      if (activeTabId === 'balance') renderBalanceSheetPanel();
-      if (activeTabId === 'pnl') renderPnlPanel();
-      if (activeTabId === 'trial') renderTrialBalancePanel();
-      if (activeTabId === 'onehub') renderOneHubPanel();
-      if (activeTabId === 'settings') renderSettingsPanel();
-      if (activeTabId === 'sales_voucher') initSalesForm();
-      if (activeTabId === 'company') renderCompanyPanel();
-      if (activeTabId === 'cashline') renderCashlinePanel();
+      if (activeTabId === 'master_desk'   && typeof renderMasterDeskPanel   === 'function') renderMasterDeskPanel();
+      if (activeTabId === 'journal') {
+        if (typeof populateJeDepartments === 'function') populateJeDepartments();
+        if (typeof jeRows !== 'undefined' && jeRows.length === 0 && typeof initFormDefaults === 'function') {
+          initFormDefaults();
+        }
+        if (typeof window.checkAndRestorePendingJournalState === 'function') {
+          window.checkAndRestorePendingJournalState();
+        }
+      }
+      if (activeTabId === 'voucher_desk'  && typeof renderVoucherDeskPanel  === 'function') renderVoucherDeskPanel();
+      if (activeTabId === 'chart'         && typeof switchCoaTab            === 'function') switchCoaTab(_coaActiveTab);
+      if (activeTabId === 'balance'       && typeof renderBalanceSheetPanel === 'function') renderBalanceSheetPanel();
+      if (activeTabId === 'pnl'           && typeof renderPnlPanel          === 'function') renderPnlPanel();
+      if (activeTabId === 'trial'         && typeof renderTrialBalancePanel === 'function') renderTrialBalancePanel();
+      if (activeTabId === 'onehub'        && typeof renderOneHubPanel       === 'function') renderOneHubPanel();
+      if (activeTabId === 'settings'      && typeof renderSettingsPanel     === 'function') renderSettingsPanel();
+      if (activeTabId === 'sales_voucher') {
+        if (typeof salesRows !== 'undefined' && salesRows.length === 0 && typeof initSalesForm === 'function') {
+          initSalesForm();
+        } else {
+          if (typeof populateSalesCustomers === 'function') populateSalesCustomers();
+          if (typeof populateSalesExecutives === 'function') populateSalesExecutives();
+        }
+        if (typeof window.checkAndRestorePendingJournalState === 'function') {
+          window.checkAndRestorePendingJournalState();
+        }
+      }
+      if (activeTabId === 'purchase_voucher') {
+        if (typeof purchaseRows !== 'undefined' && purchaseRows.length === 0 && typeof initPurchaseForm === 'function') {
+          initPurchaseForm();
+        } else {
+          if (typeof populatePurchaseVendors === 'function') populatePurchaseVendors();
+          if (typeof populatePurchaseExecutives === 'function') populatePurchaseExecutives();
+          if (typeof populatePurchasePaymentAccounts === 'function') populatePurchasePaymentAccounts();
+        }
+        if (typeof window.checkAndRestorePendingJournalState === 'function') {
+          window.checkAndRestorePendingJournalState();
+        }
+      }
+      if (activeTabId === 'company'       && typeof renderCompanyPanel      === 'function') renderCompanyPanel();
+      if (activeTabId === 'cashline'      && typeof renderCashlinePanel     === 'function') renderCashlinePanel();
+      if (activeTabId === 'stock_hub'     && typeof renderStockHubPanel     === 'function') renderStockHubPanel();
 
       // Highlight sidebar nav item
       const navEl = document.getElementById(def.navId);
@@ -524,7 +709,10 @@
       // Show Dashboard (welcome panel)
       panelWelcome.style.display = '';
       panelWelcome.classList.add('active');
-      document.getElementById('nav-dashboard').classList.add('active');
+      document.getElementById('nav-dashboard')?.classList.add('active');
+      if (typeof initDashboard === 'function') {
+        initDashboard();
+      }
     }
   }
 
@@ -700,7 +888,291 @@
     });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  DASHBOARD INIT  –  Financial Command Centre
+  // ─────────────────────────────────────────────────────────────
+  const DB_DATA = {
+    today: {
+      revenue: { val: 84500, badge: '+8.4%', sub: '4 invoices today', up: true },
+      expense: { val: 12300, badge: '-2.1%', sub: '2 expenses today', up: false },
+      profit:  { val: 72200, badge: '+14.2%', sub: 'Margin: 85.4%', up: true },
+      cash:    { val: 4320000, badge: 'Healthy', sub: 'Across 3 accounts', up: true },
+      donut:   { recv: '₹84.5K', pay: '₹12.3K', over: '₹0.00', total: '₹96.8K', dashRecv: '280 47', dashPay: '40 287', dashOver: '7 320' },
+      chart: [
+        { m:'9 AM', inc:12, exp:3 },
+        { m:'11 AM', inc:28, exp:5 },
+        { m:'1 PM', inc:15, exp:2 },
+        { m:'3 PM', inc:18, exp:1 },
+        { m:'5 PM', inc:11.5, exp:1.3 }
+      ]
+    },
+    month: {
+      revenue: { val: 2847650, badge: '+12.4%', sub: 'vs ₹25.3L last month', up: true },
+      expense: { val: 1193420, badge: '+5.2%',  sub: 'vs ₹11.4L last month', up: false },
+      profit:  { val: 1654230, badge: '+18.7%', sub: 'Margin: 58.1%', up: true },
+      cash:    { val: 4320000, badge: 'Healthy', sub: 'Across 3 accounts', up: true },
+      donut:   { recv: '₹12.2L', pay: '₹4.8L', over: '₹1.4L', total: '₹18.4L', dashRecv: '196 131', dashPay: '108 219', dashOver: '23 304' },
+      chart: [
+        { m:'Apr', inc:85, exp:42 },
+        { m:'May', inc:92, exp:50 },
+        { m:'Jun', inc:78, exp:38 },
+        { m:'Jul', inc:110, exp:55 },
+        { m:'Aug', inc:98, exp:48 },
+        { m:'Sep', inc:120, exp:60 },
+        { m:'Oct', inc:105, exp:52 },
+        { m:'Nov', inc:130, exp:65 },
+        { m:'Dec', inc:140, exp:70 },
+        { m:'Jan', inc:118, exp:58 },
+        { m:'Feb', inc:125, exp:62 },
+        { m:'Mar', inc:145, exp:72 },
+      ]
+    },
+    quarter: {
+      revenue: { val: 8420000, badge: '+15.1%', sub: 'vs ₹73.1L in Q1', up: true },
+      expense: { val: 3610000, badge: '+4.8%',  sub: 'vs ₹34.4L in Q1', up: false },
+      profit:  { val: 4810000, badge: '+21.3%', sub: 'Margin: 57.1%', up: true },
+      cash:    { val: 4320000, badge: 'Strong',  sub: 'Cash runway: 8 mo', up: true },
+      donut:   { recv: '₹14.8L', pay: '₹5.2L', over: '₹1.8L', total: '₹21.8L', dashRecv: '205 122', dashPay: '98 229', dashOver: '24 303' },
+      chart: [
+        { m:'Q1 (Apr-Jun)', inc:255, exp:130 },
+        { m:'Q2 (Jul-Sep)', inc:328, exp:163 },
+        { m:'Q3 (Oct-Dec)', inc:375, exp:187 },
+        { m:'Q4 (Jan-Mar)', inc:388, exp:192 },
+      ]
+    },
+    year: {
+      revenue: { val: 34280000, badge: '+22.3%', sub: 'vs ₹2.80Cr in FY 23-24', up: true },
+      expense: { val: 14850000, badge: '+8.6%',  sub: 'vs ₹1.36Cr in FY 23-24', up: false },
+      profit:  { val: 19430000, badge: '+34.5%', sub: 'Margin: 56.7%', up: true },
+      cash:    { val: 4320000, badge: 'Optimal', sub: 'Surplus: +₹62.5L', up: true },
+      donut:   { recv: '₹18.4L', pay: '₹6.1L', over: '₹2.1L', total: '₹26.6L', dashRecv: '215 112', dashPay: '90 237', dashOver: '22 305' },
+      chart: [
+        { m:'FY 2021-22', inc:185, exp:98 },
+        { m:'FY 2022-23', inc:240, exp:122 },
+        { m:'FY 2023-24', inc:280, exp:136 },
+        { m:'FY 2024-25', inc:342, exp:148 },
+      ]
+    },
+    all: {
+      revenue: { val: 56420000, badge: '+28.5%', sub: 'All-time cumulative', up: true },
+      expense: { val: 24100000, badge: '+11.2%', sub: 'All-time cumulative', up: false },
+      profit:  { val: 32320000, badge: '+42.1%', sub: 'Margin: 57.3%', up: true },
+      cash:    { val: 4320000, badge: 'Optimal', sub: 'Surplus: +₹62.5L', up: true },
+      donut:   { recv: '₹24.8L', pay: '₹8.4L', over: '₹3.1L', total: '₹36.3L', dashRecv: '220 107', dashPay: '85 242', dashOver: '22 305' },
+      chart: [
+        { m:'2022', inc:185, exp:98 },
+        { m:'2023', inc:240, exp:122 },
+        { m:'2024', inc:280, exp:136 },
+        { m:'2025', inc:342, exp:148 },
+        { m:'2026', inc:380, exp:165 }
+      ]
+    }
+  };
+
+  let activeDashboardPeriod = 'month';
+
+  function formatINR(n) {
+    if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + 'Cr';
+    if (n >= 100000)   return '₹' + (n / 100000).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN');
+  }
+
+  function animateCounter(el, targetValue, duration = 1100) {
+    if (!el) return;
+    const start = Date.now();
+    function tick() {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = formatINR(Math.round(targetValue * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function renderDashboardPeriod(periodKey) {
+    const data = DB_DATA[periodKey] || DB_DATA.month;
+    activeDashboardPeriod = periodKey;
+
+    // 1. Update KPI Card 1 (Revenue)
+    const revCard = document.getElementById('dbKpiRevenue');
+    if (revCard) {
+      const valEl   = revCard.querySelector('.db-kpi-value');
+      const badgeEl = revCard.querySelector('.db-kpi-badge span');
+      const subEl   = revCard.querySelector('.db-kpi-sub');
+      if (valEl) animateCounter(valEl, data.revenue.val);
+      if (badgeEl) badgeEl.textContent = data.revenue.badge;
+      if (subEl) subEl.textContent = data.revenue.sub;
+    }
+
+    // 2. Update KPI Card 2 (Expenses)
+    const expCard = document.getElementById('dbKpiExpense');
+    if (expCard) {
+      const valEl   = expCard.querySelector('.db-kpi-value');
+      const badgeEl = expCard.querySelector('.db-kpi-badge span');
+      const subEl   = expCard.querySelector('.db-kpi-sub');
+      if (valEl) animateCounter(valEl, data.expense.val);
+      if (badgeEl) badgeEl.textContent = data.expense.badge;
+      if (subEl) subEl.textContent = data.expense.sub;
+    }
+
+    // 3. Update KPI Card 3 (Net Profit)
+    const profCard = document.getElementById('dbKpiProfit');
+    if (profCard) {
+      const valEl   = profCard.querySelector('.db-kpi-value');
+      const badgeEl = profCard.querySelector('.db-kpi-badge span');
+      const subEl   = profCard.querySelector('.db-kpi-sub');
+      if (valEl) animateCounter(valEl, data.profit.val);
+      if (badgeEl) badgeEl.textContent = data.profit.badge;
+      if (subEl) subEl.textContent = data.profit.sub;
+    }
+
+    // 4. Update KPI Card 4 (Cash)
+    const cashCard = document.getElementById('dbKpiCash');
+    if (cashCard) {
+      const valEl   = cashCard.querySelector('.db-kpi-value');
+      const badgeEl = cashCard.querySelector('.db-kpi-badge span');
+      const subEl   = cashCard.querySelector('.db-kpi-sub');
+      if (valEl) animateCounter(valEl, data.cash.val);
+      if (badgeEl) badgeEl.textContent = data.cash.badge;
+      if (subEl) subEl.textContent = data.cash.sub;
+    }
+
+    // 5. Update Donut values
+    const donutTotal = document.querySelector('.db-donut-center-val');
+    if (donutTotal) donutTotal.textContent = data.donut.total;
+    const donutLegVals = document.querySelectorAll('.db-ring-leg-val');
+    if (donutLegVals.length >= 3) {
+      donutLegVals[0].textContent = data.donut.recv;
+      donutLegVals[1].textContent = data.donut.pay;
+      donutLegVals[2].textContent = data.donut.over;
+    }
+
+    // 6. Update Bar Chart
+    const chartEl = document.getElementById('dbBarChart');
+    const labelsEl = document.getElementById('dbBarLabels');
+    if (chartEl && labelsEl) {
+      const maxVal = Math.max(...data.chart.map(d => Math.max(d.inc, d.exp)));
+      chartEl.innerHTML = '';
+      labelsEl.innerHTML = '';
+      data.chart.forEach((d, i) => {
+        const group = document.createElement('div');
+        group.className = 'db-bar-group';
+        const barInc = document.createElement('div');
+        barInc.className = 'db-bar db-bar-inc';
+        barInc.style.height = '0px';
+        barInc.title = `${d.m} - Income: ₹${d.inc}L`;
+        const barExp = document.createElement('div');
+        barExp.className = 'db-bar db-bar-exp';
+        barExp.style.height = '0px';
+        barExp.title = `${d.m} - Expenses: ₹${d.exp}L`;
+        group.appendChild(barInc);
+        group.appendChild(barExp);
+        chartEl.appendChild(group);
+
+        const lbl = document.createElement('div');
+        lbl.className = 'db-bar-label';
+        lbl.textContent = d.m;
+        labelsEl.appendChild(lbl);
+
+        setTimeout(() => {
+          barInc.style.transition = 'height .5s cubic-bezier(.4,0,.2,1)';
+          barExp.style.transition = 'height .5s cubic-bezier(.4,0,.2,1)';
+          barInc.style.height = Math.max(6, Math.round((d.inc / maxVal) * 114)) + 'px';
+          barExp.style.height = Math.max(4, Math.round((d.exp / maxVal) * 114)) + 'px';
+        }, 50 + i * 35);
+      });
+    }
+  }
+
+  function initDashboard() {
+    // Greeting & Live Date & Company Name
+    const greetingEl = document.getElementById('dbGreetingText');
+    const dateEl     = document.getElementById('dbDateDisplay');
+    const companyEl  = document.getElementById('dbCompanyName');
+    if (greetingEl) {
+      const h = new Date().getHours();
+      greetingEl.textContent = h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening';
+    }
+    if (dateEl) {
+      const now = new Date();
+      dateEl.textContent = now.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    }
+    if (companyEl) {
+      const co = (typeof getCompanyDetails === 'function') ? getCompanyDetails() : {};
+      companyEl.textContent = co.displayName || co.name || 'KYA Technologies Pvt Ltd';
+    }
+
+    // Render current active period
+    renderDashboardPeriod(activeDashboardPeriod);
+
+    // Bind period selector buttons
+    document.querySelectorAll('.db-period-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.db-period-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const p = btn.getAttribute('data-period') || 'month';
+        renderDashboardPeriod(p);
+      };
+    });
+
+    // KPI Card Click Handlers for fast navigation
+    const kpiRev = document.getElementById('dbKpiRevenue');
+    if (kpiRev && !kpiRev._bound) {
+      kpiRev._bound = true;
+      kpiRev.style.cursor = 'pointer';
+      kpiRev.onclick = () => navigateTo('sales');
+    }
+    const kpiExp = document.getElementById('dbKpiExpense');
+    if (kpiExp && !kpiExp._bound) {
+      kpiExp._bound = true;
+      kpiExp.style.cursor = 'pointer';
+      kpiExp.onclick = () => navigateTo('purchase');
+    }
+    const kpiProf = document.getElementById('dbKpiProfit');
+    if (kpiProf && !kpiProf._bound) {
+      kpiProf._bound = true;
+      kpiProf.style.cursor = 'pointer';
+      kpiProf.onclick = () => navigateTo('pnl');
+    }
+    const kpiCash = document.getElementById('dbKpiCash');
+    if (kpiCash && !kpiCash._bound) {
+      kpiCash._bound = true;
+      kpiCash.style.cursor = 'pointer';
+      kpiCash.onclick = () => navigateTo('cashline');
+    }
+
+    // Refresh animation button
+    const refreshBtn = document.getElementById('dbRefreshBtn');
+    if (refreshBtn && !refreshBtn._bound) {
+      refreshBtn._bound = true;
+      refreshBtn.onclick = () => {
+        const svg = refreshBtn.querySelector('svg');
+        if (svg) {
+          svg.style.transition = 'transform .6s ease';
+          svg.style.transform = 'rotate(360deg)';
+          setTimeout(() => { svg.style.transition = ''; svg.style.transform = ''; }, 650);
+        }
+        renderDashboardPeriod(activeDashboardPeriod);
+        showToast('Dashboard figures updated.', 'info');
+      };
+    }
+  }
+
+  window.initDashboard = initDashboard;
+
+  // Run dashboard init once on load
+  initDashboard();
+
+  // Re-init dashboard whenever navigating back to it
+  window.addEventListener('hashchange', () => {
+    if (!window.location.hash || window.location.hash === '#dashboard' || window.location.hash === '#welcome') {
+      setTimeout(initDashboard, 30);
+    }
+  });
+
   // Home link (KYA breadcrumb label) click handler
+
   document.getElementById('breadcrumbHome')?.addEventListener('click', (e) => {
     if (e.detail === 3) {
       openTabs = [];

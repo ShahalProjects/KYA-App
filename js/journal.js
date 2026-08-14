@@ -71,6 +71,21 @@
     if (e.key === 'Enter') { e.preventDefault(); focusFirstParticulars(); }
   });
 
+  // ── Narration → Ctrl+Enter → Post Entry & Auto-grow height ─────────
+  const jeNarrationEl = document.getElementById('jeNarration');
+  if (jeNarrationEl) {
+    jeNarrationEl.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        showSavePopup();
+      }
+    });
+    jeNarrationEl.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(Math.max(this.scrollHeight, 72), 180) + 'px';
+    });
+  }
+
   // ── Department helpers ────────────────────────────────────────────
   function populateJeDepartments() {
     const sel = document.getElementById('jeDepartment');
@@ -111,6 +126,133 @@
     }
   }
 
+  // ── Document Attachment Helpers ────────────────────────────────────
+  window._jeUploadedDoc = null;
+
+  function formatJeDocBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function updateJeDocUI(doc) {
+    const emptyState = document.getElementById('jeDocEmptyState');
+    const selectedState = document.getElementById('jeDocSelectedState');
+    const badge = document.getElementById('jeDocStatusBadge');
+    const nameEl = document.getElementById('jeDocFileName');
+    const sizeEl = document.getElementById('jeDocFileSize');
+    const iconEl = document.getElementById('jeDocFileIcon');
+    const previewBtn = document.getElementById('jeDocPreviewBtn');
+    const fileInp = document.getElementById('jeDocFileInput');
+
+    if (!doc || !doc.fileData) {
+      window._jeUploadedDoc = null;
+      if (emptyState) emptyState.style.display = 'flex';
+      if (selectedState) selectedState.style.display = 'none';
+      if (badge) badge.style.display = 'none';
+      if (fileInp) fileInp.value = '';
+      return;
+    }
+
+    window._jeUploadedDoc = doc;
+    if (emptyState) emptyState.style.display = 'none';
+    if (selectedState) selectedState.style.display = 'flex';
+    if (badge) badge.style.display = 'inline-block';
+    
+    if (nameEl) nameEl.textContent = doc.fileName || 'Attachment';
+    if (sizeEl) sizeEl.textContent = doc.fileSize || formatJeDocBytes(doc.fileBytes || 0);
+    
+    const ext = (doc.fileName || '').split('.').pop().toUpperCase();
+    if (iconEl) {
+      iconEl.textContent = ext.substring(0, 4) || 'DOC';
+      if (['PDF'].includes(ext)) {
+        iconEl.style.background = '#fee2e2'; iconEl.style.color = '#991b1b';
+      } else if (['JPG','JPEG','PNG','WEBP'].includes(ext)) {
+        iconEl.style.background = '#e0e7ff'; iconEl.style.color = '#3730a3';
+      } else if (['XLS','XLSX','CSV'].includes(ext)) {
+        iconEl.style.background = '#dcfce7'; iconEl.style.color = '#166534';
+      } else {
+        iconEl.style.background = '#dbeafe'; iconEl.style.color = '#1e40af';
+      }
+    }
+    
+    if (previewBtn) {
+      previewBtn.href = doc.fileData;
+      previewBtn.download = doc.fileName || 'document';
+    }
+  }
+
+  function handleJeDocUpload(file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('File size exceeds 10MB limit.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const doc = {
+        fileName: file.name,
+        fileSize: formatJeDocBytes(file.size),
+        fileBytes: file.size,
+        fileData: e.target.result
+      };
+      updateJeDocUI(doc);
+      showToast(`Document "${file.name}" attached.`, 'success');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setupJeDocEventListeners() {
+    const fileInp = document.getElementById('jeDocFileInput');
+    const dropzone = document.getElementById('jeDocDropzone');
+    const removeBtn = document.getElementById('jeDocRemoveBtn');
+
+    if (dropzone && fileInp && !dropzone.dataset.bound) {
+      dropzone.dataset.bound = 'true';
+      dropzone.addEventListener('click', (e) => {
+        if (e.target.closest('#jeDocRemoveBtn') || e.target.closest('#jeDocPreviewBtn')) return;
+        fileInp.click();
+      });
+
+      fileInp.addEventListener('change', () => {
+        if (fileInp.files && fileInp.files[0]) {
+          handleJeDocUpload(fileInp.files[0]);
+        }
+      });
+
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--blue-500)';
+        dropzone.style.background = 'var(--blue-50)';
+      });
+
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.style.borderColor = 'var(--slate-300)';
+        dropzone.style.background = 'var(--white)';
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--slate-300)';
+        dropzone.style.background = 'var(--white)';
+        if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
+          handleJeDocUpload(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    if (removeBtn && !removeBtn.dataset.bound) {
+      removeBtn.dataset.bound = 'true';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateJeDocUI(null);
+        showToast('Attached document removed.', 'info');
+      });
+    }
+  }
+
   // ── Initialise form defaults ──────────────────────────────────────
   function initFormDefaults() {
     const d = new Date();
@@ -129,6 +271,8 @@
     jeCounter = 1;
     addRow('By');    // first row is always "By" by default
     refreshTotals();
+    updateJeDocUI(null);
+    setupJeDocEventListeners();
     window._editingJournalEntry = null;
   }
 
@@ -161,6 +305,8 @@
     
     renderRows();
     refreshTotals();
+    updateJeDocUI(entry.uploadedDoc || null);
+    setupJeDocEventListeners();
     
     window._editingJournalEntry = { id: entry.id, isDraft: isDraft };
   }
@@ -324,7 +470,11 @@
       const delBtn = document.createElement('button');
       delBtn.className = 'je-del-btn';
       delBtn.setAttribute('aria-label', 'Delete row');
-      delBtn.innerHTML = `<svg viewBox="0 0 13 13" fill="none"><path d="M2 2l9 9M11 2l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+      delBtn.innerHTML = `
+        <svg viewBox="0 0 15 15" fill="none" style="width: 13px; height: 13px;">
+          <path d="M5.5 2h4M1.5 4h12M2.5 4l1 9.5a1 1 0 001 .5h6a1 1 0 001-.5l1-9.5M5.5 6.5v5M9.5 6.5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      `;
       delBtn.addEventListener('click', () => {
         if (isFirst) {
           // First row: clear fields rather than removing the row
@@ -384,7 +534,7 @@
     let _highlightIdx = -1;
     let _open         = false;
 
-    function _items() { return el.querySelectorAll('.je-drop-item'); }
+    function _items() { return el.querySelectorAll('.je-drop-item, .je-drop-create-item'); }
 
     function _setHL(idx) {
       const items = _items();
@@ -397,13 +547,20 @@
     }
 
     function _position(inp) {
-      const r          = inp.getBoundingClientRect();
+      if (!inp || !inp.isConnected) return;
+      const r = inp.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) {
+        requestAnimationFrame(() => {
+          if (_open && _activeInp === inp) _position(inp);
+        });
+        return;
+      }
       const spaceBelow = window.innerHeight - r.bottom - 8;
       const spaceAbove = r.top - 8;
       const maxH       = Math.min(280, Math.max(spaceBelow, spaceAbove) - 8);
       el.style.maxHeight = maxH + 'px';
       el.style.width     = Math.max(r.width, 260) + 'px';
-      el.style.left      = r.left + 'px';
+      el.style.left      = Math.max(8, Math.min(r.left, window.innerWidth - Math.max(r.width, 260) - 8)) + 'px';
       if (spaceBelow >= 140 || spaceBelow >= spaceAbove) {
         el.style.top    = (r.bottom + 6) + 'px';
         el.style.bottom = 'auto';
@@ -435,15 +592,38 @@
       el.innerHTML = '';
 
       if (!matches.length) {
-        el.innerHTML = `
-          <div class="je-drop-empty">
-            <svg class="je-drop-empty-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <circle cx="14" cy="14" r="9" stroke="currentColor" stroke-width="1.8"/>
-              <path d="M21 21l6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'je-drop-empty';
+        emptyDiv.innerHTML = `
+          <svg class="je-drop-empty-icon" width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <circle cx="14" cy="14" r="9" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M21 21l6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <span class="je-drop-empty-txt">No ledger found</span>
+          <button type="button" class="je-drop-create-item" id="jeDropCreateLedgerBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span class="je-drop-empty-txt">No ledger found</span>
-            <span class="je-drop-empty-sub">Try a different name or add it in Chart of Accounts</span>
-          </div>`;
+            <span>Create Ledger</span>
+          </button>
+        `;
+        const createBtn = emptyDiv.querySelector('#jeDropCreateLedgerBtn');
+        if (createBtn) {
+          createBtn.addEventListener('mousedown', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetInp = _activeInp;
+            const rowEl = targetInp ? targetInp.closest('[data-row-id]') : null;
+            const rowId = rowEl ? Number(rowEl.dataset.rowId) : null;
+            const searchVal = query ? query.trim() : (targetInp ? targetInp.value.trim() : '');
+            window._jeOpeningMasterDesk = true;
+            close();
+            triggerCreateLedgerFromJournal(searchVal, rowId);
+          });
+        }
+        el.appendChild(emptyDiv);
+        _setHL(0);
       } else {
         const GROUP_LABELS = {
           assets: 'Assets', 'equity-liabilities': 'Equity & Liabilities',
@@ -482,6 +662,9 @@
       }
 
       _position(inp);
+      requestAnimationFrame(() => {
+        if (_open && _activeInp === inp) _position(inp);
+      });
       el.classList.add('open');
       _open = true;
     }
@@ -518,6 +701,72 @@
     return { open, close, isOpen, moveHighlight, selectHighlighted };
   })();
 
+  function triggerCreateLedgerFromJournal(initialName, rowId) {
+    window._jeOpeningMasterDesk = true;
+    if (typeof window.openMasterDeskCreateLedger === 'function') {
+      window.openMasterDeskCreateLedger({
+        initialName: initialName || '',
+        rowId: rowId,
+        returnTab: 'journal'
+      });
+    } else {
+      if (typeof openTab === 'function') openTab('master_desk');
+      else if (typeof window.openTab === 'function') window.openTab('master_desk');
+      else if (typeof navigateTo === 'function') navigateTo('master_desk');
+    }
+  }
+
+  window.onLedgerCreatedForJournal = function(newLedger, rowId) {
+    window._jeOpeningMasterDesk = false;
+    if (!newLedger || !newLedger.name) return;
+
+    let targetRow = (typeof rowId === 'number') ? jeRows.find(r => r.id === rowId) : null;
+    if (!targetRow && jeRows.length > 0) {
+      targetRow = jeRows[jeRows.length - 1];
+    }
+
+    if (targetRow) {
+      targetRow.particular = newLedger.name;
+      setTimeout(() => {
+        const tr = document.querySelector(`[data-row-id="${targetRow.id}"]`);
+        if (tr) {
+          const inp = tr.querySelector('.je-particulars-input');
+          if (inp) inp.value = newLedger.name;
+        }
+        focusDebitOfRow(targetRow.id);
+      }, 60);
+    }
+  };
+
+  window.onLedgerCreationCancelledForJournal = function(rowId, initialName) {
+    window._jeOpeningMasterDesk = false;
+    let targetRow = (typeof rowId === 'number') ? jeRows.find(r => r.id === rowId) : null;
+    if (!targetRow && jeRows.length > 0) {
+      targetRow = jeRows[0];
+    }
+    if (targetRow) {
+      if (initialName !== undefined && initialName !== null) {
+        targetRow.particular = initialName;
+      }
+      setTimeout(() => {
+        const tr = document.querySelector(`[data-row-id="${targetRow.id}"]`);
+        if (tr) {
+          const inp = tr.querySelector('.je-particulars-input');
+          if (inp) {
+            if (initialName !== undefined && initialName !== null) {
+              inp.value = initialName;
+            }
+            inp.focus();
+            _jePortal.open(inp, inp.value, function(acct) {
+              inp.value = acct.name;
+              targetRow.particular = acct.name;
+              focusDebitOfRow(targetRow.id);
+            });
+          }
+        }
+      }, 60);
+    }
+  };
 
   // ── Particulars custom dropdown cell ─────────────────────────────
   function buildParticularsCell(row, isFirstRow) {
@@ -599,6 +848,7 @@
       // Give portal mousedown time to fire before validating
       setTimeout(() => {
         if (_jePortal.isOpen()) return;
+        if (window._jeOpeningMasterDesk) return;
         const val = inp.value.trim().toLowerCase();
         if (val === '') {
           row.particular = '';
@@ -684,6 +934,7 @@
       amount:          fmtNum(amt),
       allRows:         JSON.parse(JSON.stringify(jeRows)),
       narration:       document.getElementById('jeNarration').value,
+      uploadedDoc:     window._jeUploadedDoc || null,
     };
     
     if (isEditDraft) {
@@ -1125,7 +1376,7 @@
                 <td><input type="checkbox" class="pt-cb pt-rcb" data-id="${e.id}" ${_ptSelected.has(e.id) ? 'checked' : ''}></td>
                 <td style="color:#94a3b8;font-size:12px;font-weight:600">${i + 1}</td>
                 <td style="white-space:nowrap">${e.date}</td>
-                <td><span class="pt-vbadge">${e.voucherNo}</span></td>
+                <td><span class="pt-vbadge">${e.voucherNo}</span>${e.uploadedDoc && e.uploadedDoc.fileData ? `<span title="Attachment: ${typeof ohEsc === 'function' ? ohEsc(e.uploadedDoc.fileName) : e.uploadedDoc.fileName}" style="margin-left: 5px; color: #2563eb; display: inline-flex; vertical-align: middle;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>` : ''}</td>
                 <td>${e.preparedBy}</td>
                 <td style="font-weight:500;color:#1e293b">${e.firstParticular || '—'}</td>
                 <td style="text-align:right"><span class="pt-amt">₹&thinsp;${e.amount}</span></td>
@@ -1440,7 +1691,7 @@
                 <td><input type="checkbox" class="pt-cb dt-rcb" data-id="${e.id}" ${_dtSelected.has(e.id) ? 'checked' : ''}></td>
                 <td style="color:#94a3b8;font-size:12px;font-weight:600">${i + 1}</td>
                 <td style="white-space:nowrap">${e.date || '—'}</td>
-                <td><span class="dt-vbadge">${e.voucherNo || '—'}</span></td>
+                <td><span class="dt-vbadge">${e.voucherNo || '—'}</span>${e.uploadedDoc && e.uploadedDoc.fileData ? `<span title="Attachment: ${typeof ohEsc === 'function' ? ohEsc(e.uploadedDoc.fileName) : e.uploadedDoc.fileName}" style="margin-left: 5px; color: #d97706; display: inline-flex; vertical-align: middle;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>` : ''}</td>
                 <td>${e.preparedBy || '—'}</td>
                 <td style="font-weight:500;color:#1e293b">${e.firstParticular || '—'}</td>
                 <td style="text-align:right"><span class="pt-amt" style="color:#d97706">₹&thinsp;${e.amount}</span></td>
@@ -1695,6 +1946,23 @@
             </tfoot>
           </table>
           ${entry.narration ? `<div class="fj-narration">📝 &nbsp;${entry.narration}</div>` : ''}
+          ${entry.uploadedDoc && entry.uploadedDoc.fileData ? `
+            <div style="margin-top: 16px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+                <div style="width: 32px; height: 32px; border-radius: 8px; background: #dbeafe; color: #1e40af; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; text-transform: uppercase;">
+                  ${((entry.uploadedDoc.fileName || '').split('.').pop() || 'DOC').toUpperCase().substring(0, 4)}
+                </div>
+                <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
+                  <span style="font-size: 13px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;">${typeof ohEsc === 'function' ? ohEsc(entry.uploadedDoc.fileName) : entry.uploadedDoc.fileName}</span>
+                  <span style="font-size: 11px; color: #64748b; font-weight: 500;">${entry.uploadedDoc.fileSize || ''}</span>
+                </div>
+              </div>
+              <a href="${entry.uploadedDoc.fileData}" download="${typeof ohEsc === 'function' ? ohEsc(entry.uploadedDoc.fileName) : entry.uploadedDoc.fileName}" target="_blank" style="padding: 6px 12px; font-size: 12px; font-weight: 700; color: #2563eb; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Attachment
+              </a>
+            </div>
+          ` : ''}
         </div>
       </div>`;
 
@@ -1731,6 +1999,7 @@
       amount:         fmtNum(amt),
       allRows:        JSON.parse(JSON.stringify(jeRows)),
       narration:      document.getElementById('jeNarration').value,
+      uploadedDoc:    window._jeUploadedDoc || null,
     };
 
     if (isEditPosted) {
@@ -1794,26 +2063,6 @@
           }
         });
       }
-    } else if (type === 'Invoice' || type === 'Reversal' || type === 'Order') {
-      const isDraft = (window.KYA_STORE.salesVouchersDrafts || []).some(v => v.id === id);
-      if (isDraft) {
-        showKyaConfirm({
-          title: 'Delete Draft?',
-          message: 'Are you sure you want to delete this draft? This action cannot be undone.',
-          confirmLabel: 'Delete',
-          okBg: 'var(--red-600)',
-          onConfirm: () => {
-            let list = window.KYA_STORE.salesVouchersDrafts || [];
-            list = list.filter(d => d.id !== id);
-            window.KYA_STORE.salesVouchersDrafts = list;
-            showToast('Draft deleted successfully.', 'success');
-            triggerAutoBackup();
-            renderVoucherDeskPanel();
-          }
-        });
-      } else {
-        deleteSalesInvoice(id);
-      }
     }
   }
 
@@ -1829,17 +2078,9 @@
       caretEnd = activeEl.selectionEnd;
     }
 
-    const salesJeIds = new Set(
-      (window.KYA_STORE.salesVouchers || [])
-        .map(v => v.journalEntryId)
-        .filter(id => id !== undefined && id !== null)
-    );
-    const standalonePostedCount = postedEntries.filter(e => !salesJeIds.has(e.id)).length;
-
-    const totalJE = standalonePostedCount + draftedEntries.length;
-    const totalInv = (window.KYA_STORE.salesVouchers || []).length + (window.KYA_STORE.salesVouchersDrafts || []).length;
-    const totalVouchers = totalJE + totalInv;
-    const totalDrafts = draftedEntries.length + (window.KYA_STORE.salesVouchersDrafts || []).length;
+    const totalJE = postedEntries.length;
+    const totalDrafts = draftedEntries.length;
+    const totalVouchers = totalJE + totalDrafts;
 
     const elTotal = document.getElementById('vdStatTotal');
     const elJE = document.getElementById('vdStatJE');
@@ -1848,15 +2089,12 @@
 
     if (elTotal) elTotal.textContent = totalVouchers;
     if (elJE) elJE.textContent = totalJE;
-    if (elInv) elInv.textContent = totalInv;
+    if (elInv) elInv.textContent = 0;
     if (elDrafts) elDrafts.textContent = totalDrafts;
 
     let list = [];
 
     postedEntries.forEach(e => {
-      // Exclude Journal Entries generated from Sales Invoices
-      if (salesJeIds.has(e.id)) return;
-
       list.push({
         id: e.id,
         date: e.date,
@@ -1877,36 +2115,6 @@
         type: 'Journal',
         particulars: e.narration || e.firstParticular || '—',
         amount: e.amount,
-        isDraft: true,
-        raw: e
-      });
-    });
-
-    (window.KYA_STORE.salesVouchers || []).forEach(e => {
-      const customer = coaLedgers.find(l => l.id == e.customerId);
-      const customerName = customer ? customer.name : '—';
-      list.push({
-        id: e.id,
-        date: e.date,
-        voucherNo: e.invoiceNo,
-        type: e.isReturn ? 'Reversal' : (e.isOrder ? 'Order' : 'Invoice'),
-        particulars: `Customer: ${customerName}`,
-        amount: fmtNum(e.total),
-        isDraft: false,
-        raw: e
-      });
-    });
-
-    (window.KYA_STORE.salesVouchersDrafts || []).forEach(e => {
-      const customer = coaLedgers.find(l => l.id == e.customerId);
-      const customerName = customer ? customer.name : '—';
-      list.push({
-        id: e.id,
-        date: e.date,
-        voucherNo: e.invoiceNo,
-        type: e.isReturn ? 'Reversal' : (e.isOrder ? 'Order' : 'Invoice'),
-        particulars: `Customer: ${customerName}`,
-        amount: fmtNum(e.total),
         isDraft: true,
         raw: e
       });
@@ -2115,8 +2323,7 @@
     { id:'expense',            name:'Expense',                 color:'#dc2626', light:'#fff5f5', badge:'#dc2626' },
   ];
 
-  // parentId:null → L1 sub-group; parentId:'xxx' → L2 sub-group (child of L1)
-  const COA_SYS_SGS = [
+  const DEFAULT_COA_SYS_SGS = [
     // ── Equity and Liabilities ────────────────────────────────────
     { id:'sg-shf',  main:'equity-liabilities', parent:null,     name:"Shareholders' Funds" },
     { id:'sg-sc',   main:'equity-liabilities', parent:'sg-shf', name:'Share Capital' },
@@ -2161,6 +2368,44 @@
     { id:'sg-oe',   main:'expense', parent:null, name:'Other Expenses' },
     { id:'sg-tax',  main:'expense', parent:null, name:'Tax Expense' },
   ];
+
+  function loadCoaSubGroups() {
+    try {
+      const saved = localStorage.getItem('kya_coa_subgroups');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = [...DEFAULT_COA_SYS_SGS];
+          parsed.forEach(p => {
+            if (!merged.some(m => m.id === p.id)) {
+              merged.push(p);
+            }
+          });
+          return merged;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse kya_coa_subgroups from localStorage:', e);
+    }
+    return [...DEFAULT_COA_SYS_SGS];
+  }
+
+  function saveCoaSubGroups() {
+    try {
+      if (typeof COA_SYS_SGS !== 'undefined') {
+        localStorage.setItem('kya_coa_subgroups', JSON.stringify(COA_SYS_SGS));
+      }
+    } catch (e) {
+      console.error('Failed to save kya_coa_subgroups to localStorage:', e);
+    }
+  }
+
+  // parentId:null → L1 sub-group; parentId:'xxx' → L2 sub-group (child of L1)
+  COA_SYS_SGS = loadCoaSubGroups();
+  window.COA_SYS_SGS = COA_SYS_SGS;
+  window.DEFAULT_COA_SYS_SGS = DEFAULT_COA_SYS_SGS;
+  window.saveCoaSubGroups = saveCoaSubGroups;
+  window.loadCoaSubGroups = loadCoaSubGroups;
 
 
   // ── State ────────────────────────────────────────────────────────
