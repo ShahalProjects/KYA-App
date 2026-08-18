@@ -71,17 +71,8 @@
   let _masterStockCategories = loadMasterData(KYA_STOCK_CATEGORIES_KEY, []);
   let _masterUnits = loadMasterData(KYA_UNITS_KEY, []);
   let _masterWarehouses = loadMasterData(KYA_WAREHOUSES_KEY, []);
-  let _masterStockItems = loadMasterData(KYA_STOCK_ITEMS_KEY, [
-    { id: 'item-1', name: 'Premium Cotton Fabric (Rolls)', sku: 'RAW-COT-01', group: 'Raw Materials', category: '', uom: 'Rolls', warehouse: '', qty: 45, rate: 2400.00, reorder: 15, gst: 5, aliases: ['Cotton Roll'] },
-    { id: 'item-2', name: 'Industrial Zipper #5 (Black 50cm)', sku: 'RAW-ZIP-05', group: 'Raw Materials', category: '', uom: 'Pcs', warehouse: '', qty: 1200, rate: 14.50, reorder: 300, gst: 18, aliases: ['Zip 50cm'] },
-    { id: 'item-3', name: 'Classic Slim-Fit Denim Jeans (Size 32)', sku: 'FG-DNM-32', group: 'Finished Goods', category: '', uom: 'Pcs', warehouse: '', qty: 85, rate: 650.00, reorder: 25, gst: 12, aliases: ['Denim 32'] },
-    { id: 'item-4', name: 'Classic Slim-Fit Denim Jeans (Size 34)', sku: 'FG-DNM-34', group: 'Finished Goods', category: '', uom: 'Pcs', warehouse: '', qty: 12, rate: 650.00, reorder: 25, gst: 12, aliases: ['Denim 34'] },
-    { id: 'item-5', name: 'Designer Graphic Printed T-Shirt (M)', sku: 'FG-TSH-02', group: 'Finished Goods', category: '', uom: 'Pcs', warehouse: '', qty: 0, rate: 220.00, reorder: 20, gst: 5, aliases: ['Graphic Tee M'] },
-    { id: 'item-6', name: 'High-Density Corrugated Boxes (12x12)', sku: 'PKG-BOX-12', group: 'Packaging Materials', category: '', uom: 'Pcs', warehouse: '', qty: 540, rate: 18.00, reorder: 150, gst: 18, aliases: ['Box 12x12'] },
-    { id: 'item-7', name: 'Polyester Sewing Thread 5000m (White)', sku: 'RAW-THR-01', group: 'Raw Materials', category: '', uom: 'Spools', warehouse: '', qty: 180, rate: 85.00, reorder: 40, gst: 12, aliases: ['Thread 5000m'] },
-    { id: 'item-8', name: 'Leather Formal Belt (Brown 36)', sku: 'TRD-BLT-36', group: 'Trading Goods', category: '', uom: 'Pcs', warehouse: '', qty: 8, rate: 350.00, reorder: 15, gst: 18, aliases: ['Leather Belt'] },
-    { id: 'item-9', name: 'Recyclable Poly Mailer Bags (Medium)', sku: 'PKG-BAG-02', group: 'Packaging Materials', category: '', uom: 'Pcs', warehouse: '', qty: 950, rate: 6.20, reorder: 200, gst: 18, aliases: ['Poly Mailer M'] }
-  ]);
+  const SAMPLE_STOCK_SKUS = ['RAW-COT-01', 'RAW-ZIP-05', 'FG-DNM-32', 'FG-DNM-34', 'FG-TSH-02', 'PKG-BOX-12', 'RAW-THR-01', 'TRD-BLT-36', 'PKG-BAG-02'];
+  let _masterStockItems = loadMasterData(KYA_STOCK_ITEMS_KEY, []).filter(item => !SAMPLE_STOCK_SKUS.includes(item.sku));
 
   function persistMasterStockGroups() {
     window._masterStockGroups = _masterStockGroups;
@@ -2382,11 +2373,16 @@
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = dropdown.style.display === 'flex';
-      dropdown.style.display = isOpen ? 'none' : 'flex';
       if (!isOpen) {
+        document.querySelectorAll('.kya-searchable-select-dropdown').forEach(dd => {
+          if (dd !== dropdown) dd.style.display = 'none';
+        });
+        dropdown.style.display = 'flex';
         searchInput.value = '';
         populateList('');
         setTimeout(() => searchInput.focus(), 50);
+      } else {
+        dropdown.style.display = 'none';
       }
     });
 
@@ -4022,23 +4018,44 @@
     } else if (currentMasterDeskSubtype === 'Create' && currentMasterDeskTab === 'stock_item') {
       _masterStockItemAliases = [];
 
-      let groupOpts = '';
-      _masterStockGroups.forEach(g => {
-        groupOpts += `<option value="${escapeHtml(g.name)}">${escapeHtml(g.name)}</option>`;
-      });
-
-      let catOpts = '<option value="">-- None / Select Category --</option>';
-      _masterStockCategories.forEach(c => {
-        catOpts += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`;
-      });
+      let uomList = (_masterUnits && _masterUnits.length > 0)
+        ? _masterUnits
+        : [
+            { symbol: 'Pcs', formalName: 'Pieces' },
+            { symbol: 'Box', formalName: 'Boxes' },
+            { symbol: 'Kgs', formalName: 'Kilograms' },
+            { symbol: 'Nos', formalName: 'Numbers' },
+            { symbol: 'Mtr', formalName: 'Meters' },
+            { symbol: 'Rolls', formalName: 'Rolls' },
+            { symbol: 'Sets', formalName: 'Sets' },
+            { symbol: 'Dzn', formalName: 'Dozens' },
+            { symbol: 'Pair', formalName: 'Pairs' }
+          ];
 
       let uomOpts = '';
-      _masterUnits.forEach(u => {
+      uomList.forEach(u => {
         const isSel = (u.symbol === 'Pcs');
         uomOpts += `<option value="${escapeHtml(u.symbol)}" ${isSel ? 'selected' : ''}>${escapeHtml(u.symbol)} (${escapeHtml(u.formalName || u.symbol)})</option>`;
       });
 
-      let whOpts = '';
+      let groupList = (_masterStockGroups && _masterStockGroups.length > 0)
+        ? _masterStockGroups
+        : [{ name: 'Inventories' }, { name: 'Raw Materials' }, { name: 'Finished Goods' }, { name: 'Packaging Materials' }, { name: 'Trading Goods' }];
+
+      let groupOpts = '';
+      groupList.forEach((g, idx) => {
+        const isSel = (idx === 0);
+        const badge = (g.name === 'Inventories' || g.name === 'Primary') ? 'Inventories' : '';
+        groupOpts += `<option value="${escapeHtml(g.name)}" ${badge ? `data-badge="${badge}"` : ''} ${isSel ? 'selected' : ''}>${escapeHtml(g.name)}</option>`;
+      });
+      const initialGroupText = groupList.length > 0 ? groupList[0].name : 'Inventories';
+
+      let catOpts = '<option value="" selected>-- None / Primary --</option>';
+      _masterStockCategories.forEach(c => {
+        catOpts += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`;
+      });
+
+      let whOpts = '<option value="" selected>-- None / Default Location --</option>';
       _masterWarehouses.forEach(w => {
         whOpts += `<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`;
       });
@@ -4067,9 +4084,19 @@
             </div>
             <div>
               <label class="coa-modal-label" for="masterStockItemUomSel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Unit of Measure (UoM) *</label>
-              <select class="coa-modal-sel" id="masterStockItemUomSel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+              <select class="coa-modal-sel" id="masterStockItemUomSel" style="display: none;">
                 ${uomOpts}
               </select>
+              <div class="kya-searchable-select-wrap" id="masterStockItemUomSelSearchableWrap" style="position: relative; width: 100%;">
+                <div class="kya-searchable-select-trigger" id="masterStockItemUomSelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                  <span id="masterStockItemUomSelTriggerText">Pcs (Pieces)</span>
+                  <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                </div>
+                <div class="kya-searchable-select-dropdown" id="masterStockItemUomSelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                  <input type="text" id="masterStockItemUomSelSearch" placeholder="Search Unit of Measure (UoM)..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                  <div id="masterStockItemUomSelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -4090,24 +4117,54 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
             <div>
               <label class="coa-modal-label" for="masterStockItemGroupSel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Stock Group *</label>
-              <select class="coa-modal-sel" id="masterStockItemGroupSel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+              <select class="coa-modal-sel" id="masterStockItemGroupSel" style="display: none;">
                 ${groupOpts}
               </select>
+              <div class="kya-searchable-select-wrap" id="masterStockItemGroupSelSearchableWrap" style="position: relative; width: 100%;">
+                <div class="kya-searchable-select-trigger" id="masterStockItemGroupSelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                  <span id="masterStockItemGroupSelTriggerText">${escapeHtml(initialGroupText)}</span>
+                  <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                </div>
+                <div class="kya-searchable-select-dropdown" id="masterStockItemGroupSelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                  <input type="text" id="masterStockItemGroupSelSearch" placeholder="Search Stock Group..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                  <div id="masterStockItemGroupSelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                </div>
+              </div>
             </div>
             <div>
               <label class="coa-modal-label" for="masterStockItemCategorySel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Stock Category</label>
-              <select class="coa-modal-sel" id="masterStockItemCategorySel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+              <select class="coa-modal-sel" id="masterStockItemCategorySel" style="display: none;">
                 ${catOpts}
               </select>
+              <div class="kya-searchable-select-wrap" id="masterStockItemCategorySelSearchableWrap" style="position: relative; width: 100%;">
+                <div class="kya-searchable-select-trigger" id="masterStockItemCategorySelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                  <span id="masterStockItemCategorySelTriggerText">-- None / Primary --</span>
+                  <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                </div>
+                <div class="kya-searchable-select-dropdown" id="masterStockItemCategorySelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                  <input type="text" id="masterStockItemCategorySelSearch" placeholder="Search Stock Category..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                  <div id="masterStockItemCategorySelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Warehouse / Default Location -->
           <div class="coa-modal-fg" style="margin-bottom: 16px;">
             <label class="coa-modal-label" for="masterStockItemWarehouseSel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Default Warehouse / Godown</label>
-            <select class="coa-modal-sel" id="masterStockItemWarehouseSel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+            <select class="coa-modal-sel" id="masterStockItemWarehouseSel" style="display: none;">
               ${whOpts}
             </select>
+            <div class="kya-searchable-select-wrap" id="masterStockItemWarehouseSelSearchableWrap" style="position: relative; width: 100%;">
+              <div class="kya-searchable-select-trigger" id="masterStockItemWarehouseSelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                <span id="masterStockItemWarehouseSelTriggerText">-- None / Default Location --</span>
+                <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+              </div>
+              <div class="kya-searchable-select-dropdown" id="masterStockItemWarehouseSelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                <input type="text" id="masterStockItemWarehouseSelSearch" placeholder="Search Warehouse / Godown..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                <div id="masterStockItemWarehouseSelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+              </div>
+            </div>
           </div>
 
           <!-- Opening Balance & Rates Card -->
@@ -4169,6 +4226,11 @@
           if (inputs.length) inputs[inputs.length - 1].focus();
         });
       }
+
+      initSearchableSelectHelper(contentArea, 'masterStockItemUomSel', 'Select Unit of Measure');
+      initSearchableSelectHelper(contentArea, 'masterStockItemGroupSel', 'Select Stock Group');
+      initSearchableSelectHelper(contentArea, 'masterStockItemCategorySel', 'Select Stock Category');
+      initSearchableSelectHelper(contentArea, 'masterStockItemWarehouseSel', 'Select Warehouse / Godown');
 
       const qtyInp = contentArea.querySelector('#masterStockItemQty');
       const rateInp = contentArea.querySelector('#masterStockItemRate');
@@ -6663,29 +6725,69 @@
           itemSelectorOpts += `<option value="${item.id}" ${isSel ? 'selected' : ''}>${escapeHtml(item.name)} (${item.sku || 'No SKU'})</option>`;
         });
 
+        let groupList = (_masterStockGroups && _masterStockGroups.length > 0)
+          ? _masterStockGroups
+          : [{ name: 'Inventories' }, { name: 'Raw Materials' }, { name: 'Finished Goods' }, { name: 'Packaging Materials' }, { name: 'Trading Goods' }];
+        if (currentItem.group && !groupList.some(g => g.name === currentItem.group)) {
+          groupList = [{ name: currentItem.group }, ...groupList];
+        }
         let groupOpts = '';
-        _masterStockGroups.forEach(g => {
+        let alterGroupText = currentItem.group || 'Inventories';
+        groupList.forEach(g => {
           const isSel = (g.name === currentItem.group);
-          groupOpts += `<option value="${escapeHtml(g.name)}" ${isSel ? 'selected' : ''}>${escapeHtml(g.name)}</option>`;
+          const badge = (g.name === 'Inventories' || g.name === 'Primary') ? 'Inventories' : '';
+          if (isSel) alterGroupText = g.name;
+          groupOpts += `<option value="${escapeHtml(g.name)}" ${badge ? `data-badge="${badge}"` : ''} ${isSel ? 'selected' : ''}>${escapeHtml(g.name)}</option>`;
         });
 
-        let catOpts = '<option value="">-- None / Select Category --</option>';
+        let catOpts = `<option value="" ${!currentItem.category ? 'selected' : ''}>-- None / Primary --</option>`;
+        let alterCatText = '-- None / Primary --';
         _masterStockCategories.forEach(c => {
           const isSel = (c.name === currentItem.category);
+          if (isSel) alterCatText = c.name;
           catOpts += `<option value="${escapeHtml(c.name)}" ${isSel ? 'selected' : ''}>${escapeHtml(c.name)}</option>`;
         });
+        if (currentItem.category && !_masterStockCategories.some(c => c.name === currentItem.category)) {
+          catOpts += `<option value="${escapeHtml(currentItem.category)}" selected>${escapeHtml(currentItem.category)}</option>`;
+          alterCatText = currentItem.category;
+        }
 
+        let uomList = (_masterUnits && _masterUnits.length > 0)
+          ? _masterUnits
+          : [
+              { symbol: 'Pcs', formalName: 'Pieces' },
+              { symbol: 'Box', formalName: 'Boxes' },
+              { symbol: 'Kgs', formalName: 'Kilograms' },
+              { symbol: 'Nos', formalName: 'Numbers' },
+              { symbol: 'Mtr', formalName: 'Meters' },
+              { symbol: 'Rolls', formalName: 'Rolls' },
+              { symbol: 'Sets', formalName: 'Sets' },
+              { symbol: 'Dzn', formalName: 'Dozens' },
+              { symbol: 'Pair', formalName: 'Pairs' }
+            ];
+        if (currentItem.uom && !uomList.some(u => u.symbol === currentItem.uom)) {
+          uomList = [{ symbol: currentItem.uom, formalName: currentItem.uom }, ...uomList];
+        }
         let uomOpts = '';
-        _masterUnits.forEach(u => {
+        let alterUomText = 'Pcs (Pieces)';
+        uomList.forEach(u => {
           const isSel = (u.symbol === currentItem.uom);
-          uomOpts += `<option value="${escapeHtml(u.symbol)}" ${isSel ? 'selected' : ''}>${escapeHtml(u.symbol)} (${escapeHtml(u.formalName || u.symbol)})</option>`;
+          const label = `${u.symbol} (${u.formalName || u.symbol})`;
+          if (isSel) alterUomText = label;
+          uomOpts += `<option value="${escapeHtml(u.symbol)}" ${isSel ? 'selected' : ''}>${escapeHtml(label)}</option>`;
         });
 
-        let whOpts = '';
+        let whOpts = `<option value="" ${!currentItem.warehouse ? 'selected' : ''}>-- None / Default Location --</option>`;
+        let alterWhText = '-- None / Default Location --';
         _masterWarehouses.forEach(w => {
           const isSel = (w.name === currentItem.warehouse);
+          if (isSel) alterWhText = w.name;
           whOpts += `<option value="${escapeHtml(w.name)}" ${isSel ? 'selected' : ''}>${escapeHtml(w.name)}</option>`;
         });
+        if (currentItem.warehouse && !_masterWarehouses.some(w => w.name === currentItem.warehouse)) {
+          whOpts += `<option value="${escapeHtml(currentItem.warehouse)}" selected>${escapeHtml(currentItem.warehouse)}</option>`;
+          alterWhText = currentItem.warehouse;
+        }
 
         const totalVal = (currentItem.qty || 0) * (currentItem.rate || 0);
 
@@ -6722,9 +6824,19 @@
               </div>
               <div>
                 <label class="coa-modal-label" for="masterAlterStockItemUomSel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Unit of Measure (UoM) *</label>
-                <select class="coa-modal-sel" id="masterAlterStockItemUomSel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+                <select class="coa-modal-sel" id="masterAlterStockItemUomSel" style="display: none;">
                   ${uomOpts}
                 </select>
+                <div class="kya-searchable-select-wrap" id="masterAlterStockItemUomSelSearchableWrap" style="position: relative; width: 100%;">
+                  <div class="kya-searchable-select-trigger" id="masterAlterStockItemUomSelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                    <span id="masterAlterStockItemUomSelTriggerText">${escapeHtml(alterUomText)}</span>
+                    <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                  </div>
+                  <div class="kya-searchable-select-dropdown" id="masterAlterStockItemUomSelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <input type="text" id="masterAlterStockItemUomSelSearch" placeholder="Search Unit of Measure (UoM)..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                    <div id="masterAlterStockItemUomSelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -6745,24 +6857,54 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
               <div>
                 <label class="coa-modal-label" for="masterAlterStockItemGroupSel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Stock Group *</label>
-                <select class="coa-modal-sel" id="masterAlterStockItemGroupSel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+                <select class="coa-modal-sel" id="masterAlterStockItemGroupSel" style="display: none;">
                   ${groupOpts}
                 </select>
+                <div class="kya-searchable-select-wrap" id="masterAlterStockItemGroupSelSearchableWrap" style="position: relative; width: 100%;">
+                  <div class="kya-searchable-select-trigger" id="masterAlterStockItemGroupSelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                    <span id="masterAlterStockItemGroupSelTriggerText">${escapeHtml(alterGroupText)}</span>
+                    <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                  </div>
+                  <div class="kya-searchable-select-dropdown" id="masterAlterStockItemGroupSelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <input type="text" id="masterAlterStockItemGroupSelSearch" placeholder="Search Stock Group..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                    <div id="masterAlterStockItemGroupSelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                  </div>
+                </div>
               </div>
               <div>
                 <label class="coa-modal-label" for="masterAlterStockItemCategorySel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Stock Category</label>
-                <select class="coa-modal-sel" id="masterAlterStockItemCategorySel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+                <select class="coa-modal-sel" id="masterAlterStockItemCategorySel" style="display: none;">
                   ${catOpts}
                 </select>
+                <div class="kya-searchable-select-wrap" id="masterAlterStockItemCategorySelSearchableWrap" style="position: relative; width: 100%;">
+                  <div class="kya-searchable-select-trigger" id="masterAlterStockItemCategorySelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                    <span id="masterAlterStockItemCategorySelTriggerText">${escapeHtml(alterCatText)}</span>
+                    <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                  </div>
+                  <div class="kya-searchable-select-dropdown" id="masterAlterStockItemCategorySelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <input type="text" id="masterAlterStockItemCategorySelSearch" placeholder="Search Stock Category..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                    <div id="masterAlterStockItemCategorySelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
             <!-- Warehouse / Default Location -->
             <div class="coa-modal-fg" style="margin-bottom: 16px;">
               <label class="coa-modal-label" for="masterAlterStockItemWarehouseSel" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">Default Warehouse / Godown</label>
-              <select class="coa-modal-sel" id="masterAlterStockItemWarehouseSel" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box; background: #fff; outline: none;">
+              <select class="coa-modal-sel" id="masterAlterStockItemWarehouseSel" style="display: none;">
                 ${whOpts}
               </select>
+              <div class="kya-searchable-select-wrap" id="masterAlterStockItemWarehouseSelSearchableWrap" style="position: relative; width: 100%;">
+                <div class="kya-searchable-select-trigger" id="masterAlterStockItemWarehouseSelTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-700);">
+                  <span id="masterAlterStockItemWarehouseSelTriggerText">${escapeHtml(alterWhText)}</span>
+                  <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                </div>
+                <div class="kya-searchable-select-dropdown" id="masterAlterStockItemWarehouseSelDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                  <input type="text" id="masterAlterStockItemWarehouseSelSearch" placeholder="Search Warehouse / Godown..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                  <div id="masterAlterStockItemWarehouseSelOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                </div>
+              </div>
             </div>
 
             <!-- Opening Stock & Rates -->
@@ -6842,6 +6984,11 @@
             if (inputs.length) inputs[inputs.length - 1].focus();
           });
         }
+
+        initSearchableSelectHelper(contentArea, 'masterAlterStockItemUomSel', 'Select Unit of Measure');
+        initSearchableSelectHelper(contentArea, 'masterAlterStockItemGroupSel', 'Select Stock Group');
+        initSearchableSelectHelper(contentArea, 'masterAlterStockItemCategorySel', 'Select Stock Category');
+        initSearchableSelectHelper(contentArea, 'masterAlterStockItemWarehouseSel', 'Select Warehouse / Godown');
 
         const qtyInp = contentArea.querySelector('#masterAlterStockItemQty');
         const rateInp = contentArea.querySelector('#masterAlterStockItemRate');
@@ -7680,6 +7827,54 @@
               <div class="je-card-subtitle-text" style="color: rgba(255, 255, 255, 0.8); font-size: 12px; margin: 2px 0 0 0;">Central master control and enterprise workspace</div>
             </div>
           </div>
+          <!-- 3-dot more options dropdown -->
+          <div class="rpt-more-wrap">
+            <button class="rpt-more-btn" id="masterDeskMoreBtn" title="More Options" type="button" aria-label="More Options">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="1.5"></circle>
+                <circle cx="12" cy="5" r="1.5"></circle>
+                <circle cx="12" cy="19" r="1.5"></circle>
+              </svg>
+            </button>
+            <div class="rpt-more-dropdown" id="masterDeskMoreDropdown">
+              <!-- Export Submenu -->
+              <div class="rpt-submenu-wrap" id="masterDeskExportSubmenuWrap">
+                <button class="rpt-menu-item rpt-submenu-btn" id="masterDeskExportMenuBtn" type="button">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span>Export</span>
+                  </div>
+                  <svg class="rpt-submenu-caret" width="10" height="10" viewBox="0 0 14 14" fill="none">
+                    <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <div class="rpt-submenu-dropdown" id="masterDeskExportSubmenu">
+                  <button class="rpt-menu-item" id="masterDeskExportPdf" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    PDF
+                  </button>
+                  <button class="rpt-menu-item" id="masterDeskExportExcel" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="8" y1="13" x2="16" y2="17"></line>
+                      <line x1="16" y1="13" x2="8" y2="17"></line>
+                    </svg>
+                    Excel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="oh-layout">
@@ -7840,6 +8035,106 @@
     if (btnWarehouse) {
       btnWarehouse.addEventListener('click', () => setMasterDeskTab('warehouse'));
     }
+
+    // Wire Master Desk 3-dot dropdown
+    const moreBtn = container.querySelector('#masterDeskMoreBtn');
+    const moreDropdown = container.querySelector('#masterDeskMoreDropdown');
+    const submenuBtn = container.querySelector('#masterDeskExportMenuBtn');
+    const submenu = container.querySelector('#masterDeskExportSubmenu');
+    const pdfBtn = container.querySelector('#masterDeskExportPdf');
+    const excelBtn = container.querySelector('#masterDeskExportExcel');
+
+    if (moreBtn && moreDropdown) {
+      moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = moreDropdown.classList.contains('active');
+        closeAllMasterDeskMenus();
+        if (!isOpen) moreDropdown.classList.add('active');
+      });
+    }
+
+    if (submenuBtn && submenu) {
+      let closeTimer = null;
+      submenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        submenu.classList.toggle('active');
+      });
+      const submenuWrap = container.querySelector('#masterDeskExportSubmenuWrap');
+      if (submenuWrap) {
+        submenuWrap.addEventListener('mouseenter', () => {
+          if (closeTimer) clearTimeout(closeTimer);
+          submenu.classList.add('active');
+        });
+        submenuWrap.addEventListener('mouseleave', () => {
+          closeTimer = setTimeout(() => {
+            submenu.classList.remove('active');
+          }, 300);
+        });
+        submenu.addEventListener('mouseenter', () => {
+          if (closeTimer) clearTimeout(closeTimer);
+          submenu.classList.add('active');
+        });
+      }
+    }
+
+    function closeAllMasterDeskMenus() {
+      if (moreDropdown) moreDropdown.classList.remove('active');
+      if (submenu) submenu.classList.remove('active');
+    }
+
+    if (pdfBtn) {
+      pdfBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        closeAllMasterDeskMenus();
+        if (currentMasterDeskTab === 'customers') {
+          if (typeof window.exportCustomersToPDF === 'function') {
+            await window.exportCustomersToPDF(window.getCustomersExportData());
+          }
+        } else if (currentMasterDeskTab === 'suppliers') {
+          if (typeof window.exportSuppliersToPDF === 'function') {
+            await window.exportSuppliersToPDF(window.getSuppliersExportData());
+          }
+        } else if (currentMasterDeskTab === 'group') {
+          if (typeof window.exportChartOfAccountsToPDF === 'function') {
+            await window.exportChartOfAccountsToPDF(window.getChartOfAccountsExportData());
+          }
+        } else {
+          if (typeof window.exportLedgersToPDF === 'function') {
+            await window.exportLedgersToPDF(window.getLedgersExportData());
+          }
+        }
+      });
+    }
+
+    if (excelBtn) {
+      excelBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        closeAllMasterDeskMenus();
+        if (currentMasterDeskTab === 'customers') {
+          if (typeof window.exportCustomersToExcel === 'function') {
+            await window.exportCustomersToExcel(window.getCustomersExportData());
+          }
+        } else if (currentMasterDeskTab === 'suppliers') {
+          if (typeof window.exportSuppliersToExcel === 'function') {
+            await window.exportSuppliersToExcel(window.getSuppliersExportData());
+          }
+        } else if (currentMasterDeskTab === 'group') {
+          if (typeof window.exportChartOfAccountsToExcel === 'function') {
+            await window.exportChartOfAccountsToExcel(window.getChartOfAccountsExportData());
+          }
+        } else {
+          if (typeof window.exportLedgersToExcel === 'function') {
+            await window.exportLedgersToExcel(window.getLedgersExportData());
+          }
+        }
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      if (moreDropdown && !moreDropdown.contains(e.target) && (!moreBtn || !moreBtn.contains(e.target))) {
+        closeAllMasterDeskMenus();
+      }
+    });
 
     updateMasterDeskContent();
   }

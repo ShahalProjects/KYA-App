@@ -7,46 +7,17 @@
   'use strict';
 
   // Default Stock Items fallback
-  const DEFAULT_STOCK_ITEMS = [
-    { id: 'STK-001', name: 'Premium Cotton Fabric (Rolls)', sku: 'RAW-COT-01', group: 'Raw Materials', category: '', uom: 'Rolls', qty: 45, reorder: 15, cost: 2400.00, price: 3200.00, location: '', warehouse: '', gst: 5 },
-    { id: 'STK-002', name: 'Industrial Zipper #5 (Black 50cm)', sku: 'RAW-ZIP-05', group: 'Raw Materials', category: '', uom: 'Pcs', qty: 1200, reorder: 300, cost: 14.50, price: 22.00, location: '', warehouse: '', gst: 18 },
-    { id: 'STK-003', name: 'Classic Slim-Fit Denim Jeans (Size 32)', sku: 'FG-DNM-32', group: 'Finished Goods', category: '', uom: 'Pcs', qty: 85, reorder: 25, cost: 650.00, price: 1499.00, location: '', warehouse: '', gst: 12 },
-    { id: 'STK-004', name: 'Classic Slim-Fit Denim Jeans (Size 34)', sku: 'FG-DNM-34', group: 'Finished Goods', category: '', uom: 'Pcs', qty: 12, reorder: 25, cost: 650.00, price: 1499.00, location: '', warehouse: '', gst: 12 },
-    { id: 'STK-005', name: 'Designer Graphic Printed T-Shirt (M)', sku: 'FG-TSH-02', group: 'Finished Goods', category: '', uom: 'Pcs', qty: 0, reorder: 20, cost: 220.00, price: 599.00, location: '', warehouse: '', gst: 5 },
-    { id: 'STK-006', name: 'High-Density Corrugated Boxes (12x12)', sku: 'PKG-BOX-12', group: 'Packaging Materials', category: '', uom: 'Boxes', qty: 540, reorder: 150, cost: 18.00, price: 25.00, location: '', warehouse: '', gst: 18 },
-    { id: 'STK-007', name: 'Polyester Sewing Thread 5000m (White)', sku: 'RAW-THR-01', group: 'Raw Materials', category: '', uom: 'Spools', qty: 180, reorder: 40, cost: 85.00, price: 120.00, location: '', warehouse: '', gst: 12 },
-    { id: 'STK-008', name: 'Leather Formal Belt (Brown 36)', sku: 'TRD-BLT-36', group: 'Trading Goods', category: '', uom: 'Pcs', qty: 8, reorder: 15, cost: 350.00, price: 799.00, location: '', warehouse: '', gst: 18 },
-    { id: 'STK-009', name: 'Recyclable Poly Mailer Bags (Medium)', sku: 'PKG-BAG-02', group: 'Packaging Materials', category: '', uom: 'Pcs', qty: 950, reorder: 200, cost: 6.20, price: 10.00, location: '', warehouse: '', gst: 18 }
-  ];
+  const DEFAULT_STOCK_ITEMS = [];
 
-  // Stock Movement History Log
-  let _stockMovements = [
-    { id: 'MOV-1001', date: '2026-08-14 14:30', refNo: 'GRN-2026-089', type: 'inward', typeLabel: 'Goods Receipt', itemName: 'Premium Cotton Fabric (Rolls)', sku: 'RAW-COT-01', fromLoc: 'Apex Mills Supplier', toLoc: 'Main Warehouse (WH-A)', qty: 25, unitCost: 2400.00, totalVal: 60000.00, user: 'Admin User', remarks: 'Batch #B-8839 Received' },
-    { id: 'MOV-1002', date: '2026-08-14 11:15', refNo: 'DO-2026-041', type: 'outward', typeLabel: 'Sales Dispatch', itemName: 'Classic Slim-Fit Denim Jeans (Size 32)', sku: 'FG-DNM-32', fromLoc: 'Store Showroom (WH-B)', toLoc: 'Retail Customer / Order #1042', qty: -15, unitCost: 650.00, totalVal: 9750.00, user: 'Sales Rep', remarks: 'Tax Invoice INV-2026-082' },
-    { id: 'MOV-1003', date: '2026-08-13 16:45', refNo: 'TRF-2026-018', type: 'transfer', typeLabel: 'Warehouse Transfer', itemName: 'High-Density Corrugated Boxes (12x12)', sku: 'PKG-BOX-12', fromLoc: 'Main Warehouse (WH-A)', toLoc: 'Packaging Unit (WH-C)', qty: 150, unitCost: 18.00, totalVal: 2700.00, user: 'Logistics Lead', remarks: 'Replenishment for dispatch unit' },
-    { id: 'MOV-1004', date: '2026-08-13 10:20', refNo: 'ADJ-2026-005', type: 'adjustment', typeLabel: 'Stock Adjustment', itemName: 'Industrial Zipper #5 (Black 50cm)', sku: 'RAW-ZIP-05', fromLoc: 'Main Warehouse (WH-A)', toLoc: 'Audit Variance', qty: -20, unitCost: 14.50, totalVal: 290.00, user: 'Inventory Auditor', remarks: 'Damaged during unloading' },
-    { id: 'MOV-1005', date: '2026-08-12 15:00', refNo: 'GRN-2026-087', type: 'inward', typeLabel: 'Goods Receipt', itemName: 'Recyclable Poly Mailer Bags (Medium)', sku: 'PKG-BAG-02', fromLoc: 'EcoPack Industries', toLoc: 'Packaging Unit (WH-C)', qty: 500, unitCost: 6.20, totalVal: 3100.00, user: 'Admin User', remarks: 'Bulk order PO-9912' },
-    { id: 'MOV-1006', date: '2026-08-11 13:10', refNo: 'DO-2026-039', type: 'outward', typeLabel: 'Sales Dispatch', itemName: 'Classic Slim-Fit Denim Jeans (Size 34)', sku: 'FG-DNM-34', fromLoc: 'Store Showroom (WH-B)', toLoc: 'Online Order #554', qty: -8, unitCost: 650.00, totalVal: 5200.00, user: 'Dispatch Desk', remarks: 'Dispatched via Courier' }
-  ];
-
-  // Navigation State
-  // Top Action Buttons: 'overview', 'item', 'group', 'category', 'unit', 'warehouse'
-  let _activeTopTab = 'overview';
-  // Sub-tabs: 'details', 'items', 'movement', 'analysis'
-  let _activeLeftSubtab = 'details';
-
-  // Filters state
-  let _searchQuery = '';
-  let _selectedCategory = 'all';
-  let _selectedStatus = 'all';
-  let _selectedWarehouse = 'all';
-  let _movementTypeFilter = 'all';
+  const SAMPLE_STOCK_SKUS = ['RAW-COT-01', 'RAW-ZIP-05', 'FG-DNM-32', 'FG-DNM-34', 'FG-TSH-02', 'PKG-BOX-12', 'RAW-THR-01', 'TRD-BLT-36', 'PKG-BAG-02'];
+  const SAMPLE_MOVEMENT_IDS = ['MOV-1001', 'MOV-1002', 'MOV-1003', 'MOV-1004', 'MOV-1005', 'MOV-1006'];
 
   const KYA_STOCK_GROUPS_KEY = 'kya_master_stock_groups';
   const KYA_STOCK_CATEGORIES_KEY = 'kya_master_stock_categories';
   const KYA_UNITS_KEY = 'kya_master_units';
   const KYA_WAREHOUSES_KEY = 'kya_master_warehouses';
   const KYA_STOCK_ITEMS_KEY = 'kya_master_stock_items';
+  const KYA_STOCK_MOVEMENTS_KEY = 'kya_stock_movements';
 
   function loadStockHubStorage(key, fallback) {
     try {
@@ -69,11 +40,38 @@
     }
   }
 
+  // Stock Movement History Log
+  let _stockMovements = loadStockHubStorage(KYA_STOCK_MOVEMENTS_KEY, []).filter(m => !SAMPLE_MOVEMENT_IDS.includes(m.id));
+
+  // Navigation State
+  // Top Action Buttons: 'overview', 'item', 'group', 'category', 'unit', 'warehouse'
+  let _activeTopTab = 'overview';
+  // Sub-tabs: 'details', 'items', 'movement', 'analysis'
+  let _activeLeftSubtab = 'details';
+
+  // Filters state
+  let _searchQuery = '';
+  let _selectedCategory = 'all';
+  let _selectedStatus = 'all';
+  let _selectedWarehouse = 'all';
+  let _movementTypeFilter = 'all';
+
+  // Optional dynamic columns state for Stock Item list (Unit, Group, Category, Warehouse hidden by default)
+  let _stockItemOptionalCols = {
+    unit: false,
+    group: false,
+    category: false,
+    warehouse: false
+  };
+  let _isStockColDropdownOpen = false;
+
   // Get active items synchronized with Master Desk if available
   function getStockItems() {
-    let items = (window._masterStockItems && Array.isArray(window._masterStockItems) && window._masterStockItems.length > 0)
+    let items = (window._masterStockItems && Array.isArray(window._masterStockItems))
       ? window._masterStockItems
       : loadStockHubStorage(KYA_STOCK_ITEMS_KEY, DEFAULT_STOCK_ITEMS);
+
+    items = items.filter(item => !SAMPLE_STOCK_SKUS.includes(item.sku));
 
     return items.map(item => {
       const itemCost = (typeof item.rate === 'number' && !isNaN(item.rate)) ? item.rate : ((typeof item.cost === 'number' && !isNaN(item.cost)) ? item.cost : 0);
@@ -707,9 +705,9 @@
     const outStockCount = stockItems.filter(i => i.qty <= 0).length;
     const inStockCount = stockItems.filter(i => i.qty > i.reorder).length;
 
-    const inStockPct = Math.round((inStockCount / (stockItems.length || 1)) * 100);
-    const lowStockPct = Math.round((lowStockCount / (stockItems.length || 1)) * 100);
-    const outStockPct = Math.max(0, 100 - inStockPct - lowStockPct);
+    const inStockPct = stockItems.length ? Math.round((inStockCount / stockItems.length) * 100) : 0;
+    const lowStockPct = stockItems.length ? Math.round((lowStockCount / stockItems.length) * 100) : 0;
+    const outStockPct = stockItems.length ? Math.max(0, 100 - inStockPct - lowStockPct) : 0;
 
     // Group valuation by Category
     const catMap = {};
@@ -822,7 +820,9 @@
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 10px;">
-            ${catList.map(c => {
+            ${catList.length === 0 ? `
+              <div style="text-align: center; color: var(--slate-400); font-size: 12.5px; padding: 18px 0;">No stock items recorded yet.</div>
+            ` : catList.map(c => {
               const pct = Math.round((c.val / (totalVal || 1)) * 100);
               return `
                 <div>
@@ -847,7 +847,9 @@
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${whList.map(w => {
+            ${whList.length === 0 ? `
+              <div style="text-align: center; color: var(--slate-400); font-size: 12.5px; padding: 18px 0;">No warehouses or stock recorded yet.</div>
+            ` : whList.map(w => {
               return `
                 <div style="border: 1px solid var(--slate-150, #e2e8f0); border-radius: 9px; padding: 12px 14px; background: #fafafa;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -889,7 +891,13 @@
               </tr>
             </thead>
             <tbody>
-              ${_stockMovements.slice(0, 4).map(m => {
+              ${_stockMovements.length === 0 ? `
+                <tr>
+                  <td colspan="7" class="stock-empty-state" style="text-align: center; padding: 24px; color: var(--slate-400);">
+                    No recent movement records found.
+                  </td>
+                </tr>
+              ` : _stockMovements.slice(0, 4).map(m => {
                 const isPositive = m.qty > 0;
                 let typeBg = '#ecfdf5', typeClr = '#047857';
                 if (m.type === 'outward') { typeBg = '#eff6ff'; typeClr = '#1d4ed8'; }
@@ -933,23 +941,18 @@
         item.name.toLowerCase().includes(_searchQuery) ||
         item.sku.toLowerCase().includes(_searchQuery) ||
         (item.category && item.category.toLowerCase().includes(_searchQuery)) ||
-        (item.location && item.location.toLowerCase().includes(_searchQuery));
+        (item.location && item.location.toLowerCase().includes(_searchQuery)) ||
+        (item.group && item.group.toLowerCase().includes(_searchQuery));
 
-      const matchCat = (_selectedCategory === 'all') || (item.category === _selectedCategory);
-      const matchWh = (_selectedWarehouse === 'all') || (item.location === _selectedWarehouse || item.warehouse === _selectedWarehouse);
-
-      let matchStatus = true;
-      if (_selectedStatus === 'in') matchStatus = item.qty > item.reorder;
-      else if (_selectedStatus === 'low') matchStatus = item.qty > 0 && item.qty <= item.reorder;
-      else if (_selectedStatus === 'out') matchStatus = item.qty <= 0;
-
-      return matchSearch && matchCat && matchWh && matchStatus;
+      return matchSearch;
     });
 
     const totalFilteredVal = filteredItems.reduce((sum, i) => sum + (i.qty * i.cost), 0);
 
-    const categories = Array.from(new Set(stockItems.map(i => i.category || 'General')));
-    const warehouses = Array.from(new Set(stockItems.map(i => i.location || i.warehouse || 'Main Warehouse (WH-A)')));
+    const activeOptionalCount = (_stockItemOptionalCols.unit ? 1 : 0) +
+      (_stockItemOptionalCols.group ? 1 : 0) +
+      (_stockItemOptionalCols.category ? 1 : 0) +
+      (_stockItemOptionalCols.warehouse ? 1 : 0);
 
     return `
       ${showBackButton ? `
@@ -973,20 +976,29 @@
           <input type="text" class="stock-search-input" id="stockSearchInp" placeholder="Search item name, SKU, category, godown..." value="${ohEscapeHtml(_searchQuery)}">
         </div>
         <div class="stock-filter-group">
-          <select class="stock-select-filter" id="stockCategoryFilter">
-            <option value="all" ${_selectedCategory === 'all' ? 'selected' : ''}>All Categories</option>
-            ${categories.map(c => `<option value="${ohEscapeHtml(c)}" ${_selectedCategory === c ? 'selected' : ''}>${ohEscapeHtml(c)}</option>`).join('')}
-          </select>
-          <select class="stock-select-filter" id="stockWarehouseFilter">
-            <option value="all" ${_selectedWarehouse === 'all' ? 'selected' : ''}>All Warehouses</option>
-            ${warehouses.map(w => `<option value="${ohEscapeHtml(w)}" ${_selectedWarehouse === w ? 'selected' : ''}>${ohEscapeHtml(w)}</option>`).join('')}
-          </select>
-          <select class="stock-select-filter" id="stockStatusFilter">
-            <option value="all" ${_selectedStatus === 'all' ? 'selected' : ''}>All Status</option>
-            <option value="in" ${_selectedStatus === 'in' ? 'selected' : ''}>In Stock</option>
-            <option value="low" ${_selectedStatus === 'low' ? 'selected' : ''}>Low Stock</option>
-            <option value="out" ${_selectedStatus === 'out' ? 'selected' : ''}>Out of Stock</option>
-          </select>
+          <!-- Columns Option (Trial Balance style) -->
+          <div class="rpt-col-wrap" style="position: relative;">
+            <button type="button" class="btn-stock-action" id="stockColToggleBtn" style="display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; height: 36px; font-weight: 600;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M1.5 2.5h13v11h-13zM5.5 2.5v11M10.5 2.5v11" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Columns
+            </button>
+            <div id="stockColDropdown" class="rpt-col-dropdown ${_isStockColDropdownOpen ? 'open' : ''}" style="display: ${_isStockColDropdownOpen ? 'flex' : 'none'}; position: absolute; top: calc(100% + 6px); right: 0; left: auto; z-index: 200; min-width: 170px; padding: 12px 14px; flex-direction: column; gap: 8px; border: 1.5px solid var(--slate-200); border-radius: 10px; background: #fff; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1));">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--slate-700); cursor: pointer; user-select: none;">
+                <input type="checkbox" id="col-stock-unit-check" ${_stockItemOptionalCols.unit ? 'checked' : ''} style="accent-color: var(--blue-600); width: 15px; height: 15px; cursor: pointer;"> Unit
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--slate-700); cursor: pointer; user-select: none;">
+                <input type="checkbox" id="col-stock-group-check" ${_stockItemOptionalCols.group ? 'checked' : ''} style="accent-color: var(--blue-600); width: 15px; height: 15px; cursor: pointer;"> Group
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--slate-700); cursor: pointer; user-select: none;">
+                <input type="checkbox" id="col-stock-category-check" ${_stockItemOptionalCols.category ? 'checked' : ''} style="accent-color: var(--blue-600); width: 15px; height: 15px; cursor: pointer;"> Category
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--slate-700); cursor: pointer; user-select: none;">
+                <input type="checkbox" id="col-stock-warehouse-check" ${_stockItemOptionalCols.warehouse ? 'checked' : ''} style="accent-color: var(--blue-600); width: 15px; height: 15px; cursor: pointer;"> Warehouse
+              </label>
+            </div>
+          </div>
           <button type="button" class="btn-stock-action" id="stockResetFiltersBtn" style="padding: 0 12px; height: 36px;">
             Reset
           </button>
@@ -1001,10 +1013,10 @@
               <tr>
                 <th>Code</th>
                 <th>Item</th>
-                <th>Unit</th>
-                <th>Group</th>
-                <th>Category</th>
-                <th>Warehouse</th>
+                ${_stockItemOptionalCols.unit ? '<th>Unit</th>' : ''}
+                ${_stockItemOptionalCols.group ? '<th>Group</th>' : ''}
+                ${_stockItemOptionalCols.category ? '<th>Category</th>' : ''}
+                ${_stockItemOptionalCols.warehouse ? '<th>Warehouse</th>' : ''}
                 <th style="text-align: right;">Quantity</th>
                 <th style="text-align: right;">Rate (₹)</th>
                 <th style="text-align: center;">Tax Rate</th>
@@ -1013,13 +1025,13 @@
             <tbody>
               ${filteredItems.length === 0 ? `
                 <tr>
-                  <td colspan="9" class="stock-empty-state">
+                  <td colspan="${5 + activeOptionalCount}" class="stock-empty-state">
                     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 8px; color: var(--slate-300);">
                       <circle cx="12" cy="12" r="10"></circle>
                       <line x1="12" y1="8" x2="12" y2="12"></line>
                       <line x1="12" y1="16" x2="12.01" y2="16"></line>
                     </svg>
-                    <div>No stock items match your search or filter criteria.</div>
+                    <div>${stockItems.length === 0 ? 'No stock items found. Create items from Master Desk or the action bar above.' : 'No stock items match your search criteria.'}</div>
                   </td>
                 </tr>
               ` : filteredItems.map(item => {
@@ -1027,10 +1039,10 @@
                   <tr>
                     <td style="font-family: monospace; font-weight: 700; color: var(--slate-900);">${ohEscapeHtml(item.sku)}</td>
                     <td style="font-weight: 600;">${ohEscapeHtml(item.name)}</td>
-                    <td><strong>${ohEscapeHtml(item.uom)}</strong></td>
-                    <td><span class="stock-category-badge">${ohEscapeHtml(item.group || 'Inventories')}</span></td>
-                    <td>${ohEscapeHtml(item.category || '-')}</td>
-                    <td style="font-size: 12px; color: var(--slate-600);">${ohEscapeHtml(item.location || item.warehouse)}</td>
+                    ${_stockItemOptionalCols.unit ? `<td><strong>${ohEscapeHtml(item.uom)}</strong></td>` : ''}
+                    ${_stockItemOptionalCols.group ? `<td><span class="stock-category-badge">${ohEscapeHtml(item.group || 'Inventories')}</span></td>` : ''}
+                    ${_stockItemOptionalCols.category ? `<td>${ohEscapeHtml(item.category || '-')}</td>` : ''}
+                    ${_stockItemOptionalCols.warehouse ? `<td style="font-size: 12px; color: var(--slate-600);">${ohEscapeHtml(item.location || item.warehouse || '-')}</td>` : ''}
                     <td style="text-align: right; font-weight: 700; font-size: 13.5px;">${item.qty.toLocaleString('en-IN')}</td>
                     <td style="text-align: right; font-weight: 600;">₹ ${formatInr(item.cost || item.rate || 0)}</td>
                     <td style="text-align: center;"><span style="font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #eff6ff; color: #1d4ed8;">${item.gst || 18}%</span></td>
@@ -1287,7 +1299,13 @@
                 </tr>
               </thead>
               <tbody>
-                ${abcItems.slice(0, 8).map(i => {
+                ${abcItems.length === 0 ? `
+                  <tr>
+                    <td colspan="5" class="stock-empty-state" style="text-align: center; padding: 24px; color: var(--slate-400);">
+                      No stock items available for analysis.
+                    </td>
+                  </tr>
+                ` : abcItems.slice(0, 8).map(i => {
                   let badgeStyle = 'background: #eff6ff; color: #1d4ed8;';
                   if (i.abcClass === 'B') badgeStyle = 'background: #ecfdf5; color: #047857;';
                   if (i.abcClass === 'C') badgeStyle = 'background: #f8fafc; color: #64748b;';
@@ -1329,7 +1347,9 @@
                 </tr>
               </thead>
               <tbody>
-                ${lowOrOutItems.length === 0 ? `
+                ${stockItems.length === 0 ? `
+                  <tr><td colspan="5" style="text-align: center; color: var(--slate-400); padding: 20px;">No stock items recorded yet.</td></tr>
+                ` : lowOrOutItems.length === 0 ? `
                   <tr><td colspan="5" style="text-align: center; color: #047857; padding: 20px;">All items are at optimal stock levels!</td></tr>
                 ` : lowOrOutItems.map(i => {
                   const suggestedPo = Math.max(i.reorder * 2 - i.qty, i.reorder);
@@ -1786,7 +1806,7 @@
       });
     }
 
-    // 4. Search & Filter inputs
+    // 4. Search & Columns inputs
     const searchInp = panel.querySelector('#stockSearchInp');
     if (searchInp) {
       searchInp.addEventListener('input', (e) => {
@@ -1800,37 +1820,33 @@
       });
     }
 
-    const catFilter = panel.querySelector('#stockCategoryFilter');
-    if (catFilter) {
-      catFilter.addEventListener('change', (e) => {
-        _selectedCategory = e.target.value;
-        renderStockHubPanel();
+    const colToggleBtn = panel.querySelector('#stockColToggleBtn');
+    const colDropdown = panel.querySelector('#stockColDropdown');
+    if (colToggleBtn && colDropdown) {
+      colToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _isStockColDropdownOpen = !_isStockColDropdownOpen;
+        colDropdown.style.display = _isStockColDropdownOpen ? 'flex' : 'none';
+        colDropdown.classList.toggle('open', _isStockColDropdownOpen);
       });
     }
 
-    const whFilter = panel.querySelector('#stockWarehouseFilter');
-    if (whFilter) {
-      whFilter.addEventListener('change', (e) => {
-        _selectedWarehouse = e.target.value;
-        renderStockHubPanel();
-      });
-    }
-
-    const statusFilter = panel.querySelector('#stockStatusFilter');
-    if (statusFilter) {
-      statusFilter.addEventListener('change', (e) => {
-        _selectedStatus = e.target.value;
-        renderStockHubPanel();
-      });
-    }
+    ['unit', 'group', 'category', 'warehouse'].forEach(col => {
+      const chk = panel.querySelector(`#col-stock-${col}-check`);
+      if (chk) {
+        chk.addEventListener('change', (e) => {
+          _stockItemOptionalCols[col] = e.target.checked;
+          renderStockHubPanel();
+        });
+      }
+    });
 
     const resetBtn = panel.querySelector('#stockResetFiltersBtn');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         _searchQuery = '';
-        _selectedCategory = 'all';
-        _selectedWarehouse = 'all';
-        _selectedStatus = 'all';
+        _stockItemOptionalCols = { unit: false, group: false, category: false, warehouse: false };
+        _isStockColDropdownOpen = false;
         renderStockHubPanel();
       });
     }
@@ -2014,6 +2030,7 @@
         user: 'Active User',
         remarks: remarks
       });
+      saveStockHubStorage(KYA_STOCK_MOVEMENTS_KEY, _stockMovements);
 
       overlay.remove();
       renderStockHubPanel();
@@ -2527,6 +2544,19 @@
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+
+  // Global document click listener for Columns dropdown
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('stockColDropdown');
+    const btn = document.getElementById('stockColToggleBtn');
+    if (dd && btn && _isStockColDropdownOpen) {
+      if (!dd.contains(e.target) && !btn.contains(e.target)) {
+        _isStockColDropdownOpen = false;
+        dd.style.display = 'none';
+        dd.classList.remove('open');
+      }
+    }
+  });
 
   // Global exports
   window.renderStockHubPanel = renderStockHubPanel;
