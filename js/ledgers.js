@@ -490,9 +490,25 @@
     let periodDebitSum = 0;
     let periodCreditSum = 0;
 
+    // Only the control accounts roll every party up; a party ledger of its own under
+    // Trade Receivables / Payables must show that party's rows alone.
+    const custs = ((ledger.name || '').trim().toLowerCase() === 'trade receivables')
+      ? (typeof getKyaCustomers === 'function' ? getKyaCustomers() : [])
+      : [];
+    const supps = ((ledger.name || '').trim().toLowerCase() === 'trade payables')
+      ? (typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [])
+      : [];
+    const custNames = new Set(custs.map(c => (c.name || '').trim().toLowerCase()));
+    const suppNames = new Set(supps.map(s => (s.name || '').trim().toLowerCase()));
+
     postedEntries.forEach(entry => {
       (entry.allRows || []).forEach(row => {
-        if (row.particular.trim().toLowerCase() === ledger.name.trim().toLowerCase()) {
+        const rowPart = (row.particular || '').trim().toLowerCase();
+        const isMatch = (rowPart === ledger.name.trim().toLowerCase()) ||
+          (custNames.size > 0 && custNames.has(rowPart)) ||
+          (suppNames.size > 0 && suppNames.has(rowPart));
+
+        if (isMatch) {
           const dr = parseFloat(row.debit) || 0;
           const cr = parseFloat(row.credit) || 0;
           
@@ -543,6 +559,33 @@
     const transactions = [];
 
     const vouchers = (window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) ? window.KYA_STORE.salesVouchers : [];
+
+    // Collect all journal entry IDs and voucher numbers linked to sales vouchers to prevent double-counting in postedEntries
+    const salesJournalEntryIds = new Set();
+    const salesVoucherNos = new Set();
+
+    vouchers.forEach(v => {
+      if (!v) return;
+      if (v.id) salesVoucherNos.add(String(v.id).toLowerCase());
+      if (v.invoiceNo) {
+        const invLower = String(v.invoiceNo).toLowerCase();
+        salesVoucherNos.add(invLower);
+        salesVoucherNos.add(`sv-${invLower}`);
+        salesVoucherNos.add(`sr-${invLower}`);
+        salesVoucherNos.add(`so-${invLower}`);
+        salesVoucherNos.add(`pay-${invLower}`);
+        salesVoucherNos.add(`tds-${invLower}`);
+      }
+      if (v.paymentVoucherNo) salesVoucherNos.add(String(v.paymentVoucherNo).toLowerCase());
+      if (v.tdsVoucherNo) salesVoucherNos.add(String(v.tdsVoucherNo).toLowerCase());
+      if (v.journalEntryId) salesJournalEntryIds.add(String(v.journalEntryId));
+      if (v.tdsJournalEntryId) salesJournalEntryIds.add(String(v.tdsJournalEntryId));
+      if (v.paymentJournalEntryId) salesJournalEntryIds.add(String(v.paymentJournalEntryId));
+      if (Array.isArray(v.refundJournalEntryIds)) {
+        v.refundJournalEntryIds.forEach(id => salesJournalEntryIds.add(String(id)));
+      }
+    });
+
     vouchers.forEach(v => {
       if (v.isDraft) return;
       const isMatch = String(v.customerId) === String(customer.id) || (v.customerName && v.customerName.toLowerCase() === customer.name.toLowerCase());
@@ -550,20 +593,22 @@
 
       const vDate = v.date || '';
       const total = parseFloat(v.total) || 0;
-      const paid = (v.paymentStatus === 'Full Payment') ? total : (parseFloat(v.paymentAmount) || 0);
 
-      if (dateFrom && vDate < dateFrom) {
-        if (v.isReturn) {
+      if (v.isReturn) {
+        // Sales Reversal / Return
+        const refundPaid = (v.paymentStatus === 'Full Refund')
+          ? total
+          : ((v.refundedAmount !== undefined && v.refundedAmount !== '' && !isNaN(Number(v.refundedAmount)))
+            ? parseFloat(v.refundedAmount)
+            : (parseFloat(v.paymentAmount) || 0));
+
+        if (dateFrom && vDate < dateFrom) {
           preReceived += total;
-        } else {
-          preInvoiced += total;
-          preReceived += paid;
-        }
-      } else if ((!dateFrom || vDate >= dateFrom) && (!dateTo || vDate <= dateTo)) {
-        if (v.isReturn) {
+          if (refundPaid > 0) preInvoiced += refundPaid;
+        } else if ((!dateFrom || vDate >= dateFrom) && (!dateTo || vDate <= dateTo)) {
           periodReceived += total;
           transactions.push({
-            id: v.id,
+            id: v.journalEntryId || v.id,
             date: vDate,
             voucherNo: v.invoiceNo || 'SR-' + v.id,
             particulars: 'Sales Reversal',
@@ -571,23 +616,118 @@
             credit: total,
             isSales: true
           });
-        } else {
-          periodInvoiced += total;
+          if (refundPaid > 0) {
+            periodInvoiced += refundPaid;
+            transactions.push({
+              id: (v.refundJournalEntryIds && v.refundJournalEntryIds[0]) || v.id,
+              date: vDate,
+              voucherNo: (v.invoiceNo || 'SR-' + v.id) + ' (Ref)',
+              particulars: 'Refund Paid',
+              debit: refundPaid,
+              credit: 0,
+              isSales: true
+            });
+          }
+        }
+      } else {
+        // Regular Sales Invoice
+        const tdsAmt = (v.tdsTcsMode === 'TDS' && parseFloat(v.tdsTcsAmount) > 0)
+          ? parseFloat(v.tdsTcsAmount)
+          : 0;
+        const invoiceTotal = parseFloat(v.total) || 0;
+        const grossAmount = invoiceTotal + tdsAmt;
+
+        const paid = (v.paymentStatus === 'Full Payment' || v.paymentStatus === 'Full Refund')
+          ? ((v.paymentAmount !== undefined && v.paymentAmount !== '' && !isNaN(Number(v.paymentAmount)) && Number(v.paymentAmount) > 0)
+            ? parseFloat(v.paymentAmount)
+            : invoiceTotal)
+          : (parseFloat(v.paymentAmount) || 0);
+
+        if (dateFrom && vDate < dateFrom) {
+          preInvoiced += grossAmount;
+          if (tdsAmt > 0) preReceived += tdsAmt;
+          if (paid > 0) preReceived += paid;
+        } else if ((!dateFrom || vDate >= dateFrom) && (!dateTo || vDate <= dateTo)) {
+          periodInvoiced += grossAmount;
           transactions.push({
-            id: v.id,
+            id: v.journalEntryId || v.id,
             date: vDate,
             voucherNo: v.invoiceNo || 'INV-' + v.id,
             particulars: 'Sales Invoice',
-            debit: total,
+            debit: grossAmount,
             credit: 0,
             isSales: true
           });
+          if (tdsAmt > 0) {
+            periodReceived += tdsAmt;
+            const tdsEntry = v.tdsJournalEntryId && (typeof postedEntries !== 'undefined')
+              ? postedEntries.find(e => String(e.id) === String(v.tdsJournalEntryId))
+              : null;
+            let tdsVoucherNo = (tdsEntry && tdsEntry.voucherNo) || v.tdsVoucherNo || '';
+            if (!tdsVoucherNo || !tdsVoucherNo.startsWith('JV-')) {
+              if (v.invoiceNo && v.invoiceNo.match(/^INV-\d{4}-\d+/i)) {
+                tdsVoucherNo = v.invoiceNo.replace(/^INV-/i, 'JV-');
+              } else if (tdsVoucherNo && tdsVoucherNo.match(/TDS-INV-(\d{4}-\d+)/i)) {
+                tdsVoucherNo = tdsVoucherNo.replace(/TDS-INV-/i, 'JV-');
+              } else if (tdsVoucherNo && tdsVoucherNo.match(/TDS-(?:SV-)?(\d{4}-\d+)/i)) {
+                tdsVoucherNo = tdsVoucherNo.replace(/TDS-(?:SV-)?/i, 'JV-');
+              } else if (typeof getNextJournalVoucherNo === 'function') {
+                tdsVoucherNo = getNextJournalVoucherNo(vDate, false);
+              } else {
+                const yr = vDate ? new Date(vDate).getFullYear() : new Date().getFullYear();
+                tdsVoucherNo = `JV-${yr}-001`;
+              }
+            }
+
+            if (tdsEntry && tdsEntry.voucherNo !== tdsVoucherNo) {
+              tdsEntry.voucherNo = tdsVoucherNo;
+            }
+            if (v.tdsVoucherNo !== tdsVoucherNo) {
+              v.tdsVoucherNo = tdsVoucherNo;
+            }
+
+            transactions.push({
+              id: v.tdsJournalEntryId || v.id,
+              date: vDate,
+              voucherNo: tdsVoucherNo,
+              particulars: 'TDS Deducted',
+              debit: 0,
+              credit: tdsAmt,
+              isSales: true
+            });
+          }
           if (paid > 0) {
             periodReceived += paid;
+            const payEntry = v.paymentJournalEntryId && (typeof postedEntries !== 'undefined')
+              ? postedEntries.find(e => String(e.id) === String(v.paymentJournalEntryId))
+              : null;
+            let payVoucherNo = (payEntry && payEntry.voucherNo) || v.paymentVoucherNo || '';
+            if (!payVoucherNo || !payVoucherNo.startsWith('JV-')) {
+              if (v.invoiceNo && v.invoiceNo.match(/^INV-\d{4}-\d+/i)) {
+                payVoucherNo = v.invoiceNo.replace(/^INV-/i, 'JV-');
+              } else if (payVoucherNo && payVoucherNo.match(/PAY-INV-(\d{4}-\d+)/i)) {
+                payVoucherNo = payVoucherNo.replace(/PAY-INV-/i, 'JV-');
+              } else if (payVoucherNo && payVoucherNo.match(/PAY-(?:SV-)?(\d{4}-\d+)/i)) {
+                payVoucherNo = payVoucherNo.replace(/PAY-(?:SV-)?/i, 'JV-');
+              } else if (typeof getNextJournalVoucherNo === 'function') {
+                payVoucherNo = getNextJournalVoucherNo(vDate, false);
+              } else {
+                const yr = vDate ? new Date(vDate).getFullYear() : new Date().getFullYear();
+                payVoucherNo = `JV-${yr}-001`;
+              }
+            }
+
+            if (payEntry && payEntry.voucherNo !== payVoucherNo) {
+              payEntry.voucherNo = payVoucherNo;
+            }
+            if (v.paymentVoucherNo !== payVoucherNo) {
+              v.paymentVoucherNo = payVoucherNo;
+            }
+
             transactions.push({
-              id: v.id,
+              id: v.paymentJournalEntryId || v.id,
               date: vDate,
-              voucherNo: (v.invoiceNo || 'INV-' + v.id) + ' (Rec)',
+              voucherNo: payVoucherNo,
               particulars: 'Payment Received',
               debit: 0,
               credit: paid,
@@ -599,9 +739,18 @@
     });
 
     postedEntries.forEach(entry => {
-      if ((entry.voucherNo || '').startsWith('SV-') || (entry.voucherNo || '').startsWith('SR-')) return;
+      if (!entry) return;
+      // Skip entries originating from Sales Module or linked to sales vouchers
+      if (entry.preparedBy === 'Sales Module') return;
+      if (entry.jeType === 'invoice' || entry.jeType === 'tds' || entry.jeType === 'payment') return;
+      if (salesJournalEntryIds.has(String(entry.id))) return;
+
+      const vNo = (entry.voucherNo || '').toLowerCase();
+      if (vNo.startsWith('sv-') || vNo.startsWith('sr-') || vNo.startsWith('so-') || vNo.startsWith('pay-') || vNo.startsWith('tds-')) return;
+      if (salesVoucherNos.has(vNo)) return;
+
       (entry.allRows || []).forEach(row => {
-        const rowPart = row.particular.trim().toLowerCase();
+        const rowPart = (row.particular || '').trim().toLowerCase();
         const isCustName = (rowPart === customer.name.toLowerCase());
         const isTradeRec = (rowPart === 'trade receivables' && (entry.narration || '').toLowerCase().includes(customer.name.toLowerCase()));
 
@@ -634,7 +783,19 @@
     const periodNet = periodInvoiced - periodReceived;
     const closingBalance = openingBalance + periodNet;
 
-    transactions.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    // Sort transactions chronologically: Old to New
+    transactions.sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return cmp;
+      const idA = Number(a.id) || 0;
+      const idB = Number(b.id) || 0;
+      if (idA !== idB) return idA - idB;
+      if (a.debit && !b.debit) return -1;
+      if (!a.debit && b.debit) return 1;
+      return 0;
+    });
 
     return {
       customer,
@@ -732,7 +893,19 @@
     const periodNet = periodBilled - periodPaid;
     const closingBalance = openingBalance + periodNet;
 
-    transactions.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    // Sort transactions chronologically: Old to New
+    transactions.sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return cmp;
+      const idA = Number(a.id) || 0;
+      const idB = Number(b.id) || 0;
+      if (idA !== idB) return idA - idB;
+      if (a.credit && !b.credit) return -1;
+      if (!a.credit && b.credit) return 1;
+      return 0;
+    });
 
     return {
       supplier,
@@ -778,13 +951,29 @@
     const balances = calculateLedgerBalances(ledger, dateFrom, dateTo);
 
     // Filter transactions
+    // Only the control accounts roll every party up; a party ledger of its own under
+    // Trade Receivables / Payables must show that party's rows alone.
+    const custs = ((ledger.name || '').trim().toLowerCase() === 'trade receivables')
+      ? (typeof getKyaCustomers === 'function' ? getKyaCustomers() : [])
+      : [];
+    const supps = ((ledger.name || '').trim().toLowerCase() === 'trade payables')
+      ? (typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [])
+      : [];
+    const custNames = new Set(custs.map(c => (c.name || '').trim().toLowerCase()));
+    const suppNames = new Set(supps.map(s => (s.name || '').trim().toLowerCase()));
+
     const ledgerTrans = [];
     postedEntries.forEach(entry => {
       if (dateFrom && entry.date < dateFrom) return;
       if (dateTo && entry.date > dateTo) return;
 
       (entry.allRows || []).forEach(row => {
-        if (row.particular.trim().toLowerCase() === ledger.name.trim().toLowerCase()) {
+        const rowPart = (row.particular || '').trim().toLowerCase();
+        const isMatch = (rowPart === ledger.name.trim().toLowerCase()) ||
+          (custNames.size > 0 && custNames.has(rowPart)) ||
+          (suppNames.size > 0 && suppNames.has(rowPart));
+
+        if (isMatch) {
           const dr = parseFloat(row.debit) || 0;
           const cr = parseFloat(row.credit) || 0;
           if (dr > 0 || cr > 0) {
@@ -792,7 +981,7 @@
               id: entry.id,
               date: entry.date,
               voucherNo: entry.voucherNo || '-',
-              particulars: getOppositeParticulars(entry, ledger.name, dr > 0),
+              particulars: getOppositeParticulars(entry, row.particular, dr > 0),
               debit: dr,
               credit: cr
             });
@@ -801,7 +990,16 @@
       });
     });
 
-    ledgerTrans.sort((a, b) => a.date.localeCompare(b.date));
+    // Sort transactions chronologically: Old to New
+    ledgerTrans.sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return cmp;
+      const idA = Number(a.id) || 0;
+      const idB = Number(b.id) || 0;
+      return idA - idB;
+    });
 
     let rowsHtml = '';
     const mainGroup = getLedgerMainGroup(ledger);
@@ -835,7 +1033,7 @@
         <tr>
           <td style="white-space: nowrap;">${formattedDate}</td>
           <td>${ohEsc(tr.particulars)}</td>
-          <td style="white-space: nowrap;"><span class="pt-vbadge" onclick="viewVoucherFromStatement(${tr.id})" title="Click to view details">${ohEsc(tr.voucherNo)}</span></td>
+          <td style="white-space: nowrap;"><span style="font-family: monospace; font-weight: 700; color: var(--slate-700); cursor:pointer; text-decoration:underline dotted; white-space: nowrap;" onclick="viewVoucherFromStatement(${tr.id})" title="Click to view voucher">${ohEsc(tr.voucherNo)}</span></td>
           <td class="num-col" style="color: var(--red-600);">${drText}</td>
           <td class="num-col" style="color: var(--emerald-600);">${crText}</td>
         </tr>
@@ -907,15 +1105,15 @@
     if (!data) return;
 
     let rowsHtml = '';
-    const opBalText = `₹${fmtNum(Math.abs(data.openingBalance).toFixed(2))} Dr`;
+    const opBalText = `₹${fmtNum(Math.abs(data.openingBalance).toFixed(2))} ${data.openingBalance < 0 ? 'Cr' : 'Dr'}`;
 
     rowsHtml += `
       <tr style="background: var(--slate-50); font-style: italic;">
         <td style="white-space: nowrap;">-</td>
         <td>Opening Balance</td>
         <td>-</td>
-        <td class="num-col">${opBalText}</td>
-        <td class="num-col">-</td>
+        <td class="num-col">${data.openingBalance >= 0 ? opBalText : '-'}</td>
+        <td class="num-col">${data.openingBalance < 0 ? opBalText : '-'}</td>
       </tr>
     `;
 
@@ -931,15 +1129,13 @@
         }
       }
 
-      const clickAction = tr.isSales 
-        ? `viewPrintInvoice('${tr.id}')` 
-        : `viewVoucherFromStatement(${tr.id})`;
+      const clickAction = `viewVoucherFromStatement('${tr.id}', '${ohEsc(tr.voucherNo)}')`;
 
       rowsHtml += `
         <tr>
           <td style="white-space: nowrap;">${formattedDate}</td>
           <td>${ohEsc(tr.particulars)}</td>
-          <td style="white-space: nowrap;"><span class="pt-vbadge" onclick="${clickAction}" title="Click to view details">${ohEsc(tr.voucherNo)}</span></td>
+          <td style="white-space: nowrap;"><span style="font-family: monospace; font-weight: 700; color: var(--slate-700); cursor:pointer; text-decoration:underline dotted; white-space: nowrap;" onclick="${clickAction}" title="Click to view voucher">${ohEsc(tr.voucherNo)}</span></td>
           <td class="num-col" style="color: var(--red-600);">${drText}</td>
           <td class="num-col" style="color: var(--emerald-600);">${crText}</td>
         </tr>
@@ -971,9 +1167,9 @@
       </table>
     `;
 
-    document.getElementById('statementCustOpeningBal').textContent = `₹${fmtNum(Math.abs(data.openingBalance).toFixed(2))} Dr`;
-    document.getElementById('statementCustCurrentBal').textContent = `₹${fmtNum(Math.abs(data.periodNet).toFixed(2))} ${data.periodNet >= 0 ? 'Dr' : 'Cr'}`;
-    document.getElementById('statementCustClosingBal').textContent = `₹${fmtNum(Math.abs(data.closingBalance).toFixed(2))} Dr`;
+    document.getElementById('statementCustOpeningBal').textContent = `₹${fmtNum(Math.abs(data.openingBalance).toFixed(2))} ${data.openingBalance < 0 ? 'Cr' : 'Dr'}`;
+    document.getElementById('statementCustCurrentBal').textContent = `₹${fmtNum(Math.abs(data.periodNet).toFixed(2))} ${data.periodNet < 0 ? 'Cr' : 'Dr'}`;
+    document.getElementById('statementCustClosingBal').textContent = `₹${fmtNum(Math.abs(data.closingBalance).toFixed(2))} ${data.closingBalance < 0 ? 'Cr' : 'Dr'}`;
   }
 
   function renderSupplierStatementView() {
@@ -1031,15 +1227,13 @@
         }
       }
 
-      const clickAction = tr.isJournal 
-        ? `viewVoucherFromStatement(${tr.id})` 
-        : `showToast('Purchase Voucher: ' + '${tr.voucherNo}', 'info')`;
+      const clickAction = `viewVoucherFromStatement('${tr.id}', '${ohEsc(tr.voucherNo)}')`;
 
       rowsHtml += `
         <tr>
           <td style="white-space: nowrap;">${formattedDate}</td>
           <td>${ohEsc(tr.particulars)}</td>
-          <td style="white-space: nowrap;"><span class="pt-vbadge" onclick="${clickAction}" title="Click to view details">${ohEsc(tr.voucherNo)}</span></td>
+          <td style="white-space: nowrap;"><span style="font-family: monospace; font-weight: 700; color: var(--slate-700); cursor:pointer; text-decoration:underline dotted; white-space: nowrap;" onclick="${clickAction}" title="Click to view voucher">${ohEsc(tr.voucherNo)}</span></td>
           <td class="num-col" style="color: var(--red-600);">${drText}</td>
           <td class="num-col" style="color: var(--emerald-600);">${crText}</td>
         </tr>
@@ -1091,6 +1285,17 @@
 
     const balances = calculateLedgerBalances(ledger, dateFrom, dateTo);
 
+    // Only the control accounts roll every party up; a party ledger of its own under
+    // Trade Receivables / Payables must show that party's rows alone.
+    const custs = ((ledger.name || '').trim().toLowerCase() === 'trade receivables')
+      ? (typeof getKyaCustomers === 'function' ? getKyaCustomers() : [])
+      : [];
+    const supps = ((ledger.name || '').trim().toLowerCase() === 'trade payables')
+      ? (typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [])
+      : [];
+    const custNames = new Set(custs.map(c => (c.name || '').trim().toLowerCase()));
+    const suppNames = new Set(supps.map(s => (s.name || '').trim().toLowerCase()));
+
     const ledgerTrans = [];
     let totalDebit = 0;
     let totalCredit = 0;
@@ -1100,7 +1305,12 @@
       if (dateTo && entry.date > dateTo) return;
 
       (entry.allRows || []).forEach(row => {
-        if (row.particular.trim().toLowerCase() === ledger.name.trim().toLowerCase()) {
+        const rowPart = (row.particular || '').trim().toLowerCase();
+        const isMatch = (rowPart === ledger.name.trim().toLowerCase()) ||
+          (custNames.size > 0 && custNames.has(rowPart)) ||
+          (suppNames.size > 0 && suppNames.has(rowPart));
+
+        if (isMatch) {
           const dr = parseFloat(row.debit) || 0;
           const cr = parseFloat(row.credit) || 0;
           if (dr > 0 || cr > 0) {
@@ -1110,7 +1320,7 @@
               id: entry.id,
               date: entry.date,
               voucherNo: entry.voucherNo || '-',
-              particulars: getOppositeParticulars(entry, ledger.name, dr > 0),
+              particulars: getOppositeParticulars(entry, row.particular, dr > 0),
               debit: dr,
               credit: cr
             });
@@ -1119,7 +1329,16 @@
       });
     });
 
-    ledgerTrans.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    // Sort transactions chronologically: Old to New
+    ledgerTrans.sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return cmp;
+      const idA = Number(a.id) || 0;
+      const idB = Number(b.id) || 0;
+      return idA - idB;
+    });
 
     const activeCo = (typeof getActiveCompany === 'function' ? getActiveCompany() : null) || {};
     const companyName = activeCo.name || 'KYA Accounting';
@@ -1811,48 +2030,62 @@
     navigateTo('chart');
   };
 
-  window.viewVoucherFromStatement = function(id) {
-    const entry = postedEntries.find(e => e.id === id);
-    if (!entry) return;
-
-    const isSales = (entry.voucherNo || '').startsWith('SV-') || (entry.voucherNo || '').startsWith('SR-');
-    if (isSales && window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) {
-      const cleanNo = entry.voucherNo.replace('SV-', '').replace('SR-', '');
-      const salesVoucher = window.KYA_STORE.salesVouchers.find(v => v.journalEntryId === entry.id || String(v.invoiceNo) === cleanNo);
-      if (salesVoucher) {
-        viewPrintInvoice(salesVoucher.id);
-        return;
+  window.viewVoucherFromStatement = function(id, voucherNo) {
+    let entry = postedEntries.find(e => String(e.id) === String(id));
+    if (!entry && voucherNo) {
+      entry = postedEntries.find(e => (e.voucherNo || '').toLowerCase() === String(voucherNo).toLowerCase());
+    }
+    if (!entry && window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) {
+      const sInv = window.KYA_STORE.salesVouchers.find(v => String(v.id) === String(id) || (v.invoiceNo && (v.invoiceNo === voucherNo || `PAY-${v.invoiceNo}` === voucherNo || `TDS-${v.invoiceNo}` === voucherNo || (v.paymentVoucherNo && v.paymentVoucherNo === voucherNo) || (v.tdsVoucherNo && v.tdsVoucherNo === voucherNo))));
+      if (sInv) {
+        if (voucherNo && (voucherNo.startsWith('TDS-') || (sInv.tdsVoucherNo && sInv.tdsVoucherNo === voucherNo)) && sInv.tdsJournalEntryId) {
+          entry = postedEntries.find(e => String(e.id) === String(sInv.tdsJournalEntryId));
+        } else if (voucherNo && (voucherNo.startsWith('PAY-') || (sInv.paymentVoucherNo && sInv.paymentVoucherNo === voucherNo)) && sInv.paymentJournalEntryId) {
+          entry = postedEntries.find(e => String(e.id) === String(sInv.paymentJournalEntryId));
+        }
+        if (!entry && sInv.journalEntryId) {
+          entry = postedEntries.find(e => String(e.id) === String(sInv.journalEntryId));
+        }
       }
     }
+    if (!entry) return;
 
     showFullJournalModal(entry, false);
   };
 
   window.editVoucherFromStatement = function(id) {
-    const entry = postedEntries.find(e => e.id === id);
+    const entry = postedEntries.find(e => String(e.id) === String(id));
     if (!entry) return;
 
     const isSales = (entry.voucherNo || '').startsWith('SV-') || (entry.voucherNo || '').startsWith('SR-');
     if (isSales && window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) {
       const cleanNo = entry.voucherNo.replace('SV-', '').replace('SR-', '');
-      const salesVoucher = window.KYA_STORE.salesVouchers.find(v => v.journalEntryId === entry.id || String(v.invoiceNo) === cleanNo);
+      const salesVoucher = window.KYA_STORE.salesVouchers.find(v => String(v.journalEntryId) === String(entry.id) || String(v.invoiceNo) === cleanNo);
       if (salesVoucher) {
         loadSalesInvoice(salesVoucher, false);
         return;
       }
     }
 
-    loadJournalEntry(entry, false);
+    const currentTab = (typeof activeTabId !== 'undefined' && activeTabId) ? activeTabId : 'chart';
+    const returnContext = {
+      tabId: currentTab,
+      clActiveTopTab: typeof _clActiveTopTab !== 'undefined' ? _clActiveTopTab : 'books',
+      clActiveBankingTab: typeof _clActiveBankingTab !== 'undefined' ? _clActiveBankingTab : 'details',
+      clCashbookAccountId: typeof _clCashbookAccountId !== 'undefined' ? _clCashbookAccountId : null
+    };
+
+    loadJournalEntry(entry, false, returnContext);
   };
 
   window.deleteVoucherFromStatement = function(id) {
-    const entry = postedEntries.find(e => e.id === id);
+    const entry = postedEntries.find(e => String(e.id) === String(id));
     if (!entry) return;
 
     const isSales = (entry.voucherNo || '').startsWith('SV-') || (entry.voucherNo || '').startsWith('SR-');
     if (isSales && window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) {
       const cleanNo = entry.voucherNo.replace('SV-', '').replace('SR-', '');
-      const salesVoucher = window.KYA_STORE.salesVouchers.find(v => v.journalEntryId === entry.id || String(v.invoiceNo) === cleanNo);
+      const salesVoucher = window.KYA_STORE.salesVouchers.find(v => String(v.journalEntryId) === String(entry.id) || String(v.invoiceNo) === cleanNo);
       if (salesVoucher) {
         const isRet = !!salesVoucher.isReturn;
         showKyaConfirm({
@@ -1864,16 +2097,23 @@
           okBg: 'var(--red-600)',
           onConfirm: () => {
             const list = window.KYA_STORE.salesVouchers || [];
-            const idx = list.findIndex(v => v.id === salesVoucher.id);
+            const idx = list.findIndex(v => String(v.id) === String(salesVoucher.id));
             if (idx > -1) list.splice(idx, 1);
             window.KYA_STORE.salesVouchers = list;
             
-            postedEntries = postedEntries.filter(e => e.id !== entry.id);
+            postedEntries = postedEntries.filter(e => String(e.id) !== String(entry.id));
+            if (entry.reconKey && window.KYA_STORE?.reconciliationState) {
+              delete window.KYA_STORE.reconciliationState[entry.reconKey];
+            }
             
             showToast(isRet ? `Sales Reversal "${salesVoucher.invoiceNo}" deleted.` : `Invoice "${salesVoucher.invoiceNo}" deleted.`, 'success');
-            renderLedgerStatementView();
-            refreshAllReports();
-            triggerAutoBackup();
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              renderLedgerStatementView();
+              refreshAllReports();
+              triggerAutoBackup();
+            }
           }
         });
         return;
@@ -1885,14 +2125,21 @@
       message: `Permanently delete voucher <strong>${entry.voucherNo || '—'}</strong>?<br>This action cannot be undone.`,
       confirmLabel: '✕ Delete',
       iconBg: '#fee2e2', iconColor: '#dc2626',
-      iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
       okBg: '#dc2626',
       onConfirm: () => {
-        postedEntries = postedEntries.filter(e => e.id !== id);
+        postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
+        if (entry.reconKey && window.KYA_STORE?.reconciliationState) {
+          delete window.KYA_STORE.reconciliationState[entry.reconKey];
+        }
         showToast(`Journal voucher "${entry.voucherNo}" deleted.`, 'success');
-        renderLedgerStatementView();
-        refreshAllReports();
-        triggerAutoBackup();
+        if (typeof window.refreshAllAppViews === 'function') {
+          window.refreshAllAppViews();
+        } else {
+          renderLedgerStatementView();
+          refreshAllReports();
+          triggerAutoBackup();
+        }
       }
     });
   };
@@ -1902,12 +2149,20 @@
       document.getElementById(oid)?.remove();
     });
 
+    const currentTab = (typeof activeTabId !== 'undefined' && activeTabId) ? activeTabId : 'cashline';
+    const returnContext = {
+      tabId: currentTab,
+      clActiveTopTab: typeof _clActiveTopTab !== 'undefined' ? _clActiveTopTab : 'books',
+      clActiveBankingTab: typeof _clActiveBankingTab !== 'undefined' ? _clActiveBankingTab : 'details',
+      clCashbookAccountId: typeof _clCashbookAccountId !== 'undefined' ? _clCashbookAccountId : null
+    };
+
     if (isDraft) {
-      const entry = draftedEntries.find(e => e.id === id);
-      if (entry) loadJournalEntry(entry, true);
+      const entry = draftedEntries.find(e => String(e.id) === String(id));
+      if (entry) loadJournalEntry(entry, true, returnContext);
     } else {
-      const entry = postedEntries.find(e => e.id === id);
-      if (entry) loadJournalEntry(entry, false);
+      const entry = postedEntries.find(e => String(e.id) === String(id));
+      if (entry) loadJournalEntry(entry, false, returnContext);
     }
   };
 
@@ -1922,26 +2177,75 @@
         confirmLabel: '✕ Delete',
         okBg: '#dc2626',
         onConfirm: () => {
-          draftedEntries = draftedEntries.filter(e => e.id !== id);
+          draftedEntries = draftedEntries.filter(e => String(e.id) !== String(id));
           showToast('Draft deleted successfully.', 'success');
-          renderDraftedPanel();
-          triggerAutoBackup();
+          if (typeof window.refreshAllAppViews === 'function') {
+            window.refreshAllAppViews();
+          } else {
+            renderDraftedPanel();
+            triggerAutoBackup();
+          }
         }
       });
     } else {
-      const entry = postedEntries.find(e => e.id === id);
+      const entry = postedEntries.find(e => String(e.id) === String(id));
       if (entry) {
+        const isSales = (entry.voucherNo || '').startsWith('SV-') || (entry.voucherNo || '').startsWith('SR-');
+        if (isSales && window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) {
+          const cleanNo = entry.voucherNo.replace('SV-', '').replace('SR-', '');
+          const salesVoucher = window.KYA_STORE.salesVouchers.find(v => String(v.journalEntryId) === String(entry.id) || String(v.invoiceNo) === cleanNo);
+          if (salesVoucher) {
+            const isRet = !!salesVoucher.isReturn;
+            showKyaConfirm({
+              title: isRet ? 'Delete Posted Reversal?' : 'Delete Posted Invoice?',
+              message: isRet
+                ? 'Are you sure you want to delete this sales reversal? This will also delete the corresponding journal entry and cannot be undone.'
+                : 'Are you sure you want to delete this sales invoice? This will also delete the corresponding journal entry and cannot be undone.',
+              confirmLabel: 'Delete',
+              okBg: 'var(--red-600)',
+              onConfirm: () => {
+                const list = window.KYA_STORE.salesVouchers || [];
+                const idx = list.findIndex(v => String(v.id) === String(salesVoucher.id));
+                if (idx > -1) list.splice(idx, 1);
+                window.KYA_STORE.salesVouchers = list;
+                
+                postedEntries = postedEntries.filter(e => String(e.id) !== String(entry.id));
+                if (entry.reconKey && window.KYA_STORE?.reconciliationState) {
+                  delete window.KYA_STORE.reconciliationState[entry.reconKey];
+                }
+                
+                showToast(isRet ? `Sales Reversal "${salesVoucher.invoiceNo}" deleted.` : `Invoice "${salesVoucher.invoiceNo}" deleted.`, 'success');
+                if (typeof window.refreshAllAppViews === 'function') {
+                  window.refreshAllAppViews();
+                } else {
+                  renderLedgerStatementView();
+                  refreshAllReports();
+                  triggerAutoBackup();
+                }
+              }
+            });
+            return;
+          }
+        }
+
         showKyaConfirm({
           title: 'Delete this journal entry?',
           message: `Permanently delete voucher <strong>${entry.voucherNo || '—'}</strong>?<br>This action cannot be undone.`,
           confirmLabel: '✕ Delete',
           okBg: '#dc2626',
           onConfirm: () => {
-            postedEntries = postedEntries.filter(e => e.id !== id);
+            postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
+            if (entry.reconKey && window.KYA_STORE?.reconciliationState) {
+              delete window.KYA_STORE.reconciliationState[entry.reconKey];
+            }
             showToast(`Journal voucher "${entry.voucherNo}" deleted.`, 'success');
-            renderLedgerStatementView();
-            refreshAllReports();
-            triggerAutoBackup();
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              renderLedgerStatementView();
+              refreshAllReports();
+              triggerAutoBackup();
+            }
           }
         });
       }

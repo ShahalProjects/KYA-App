@@ -40,6 +40,61 @@
   let _masterAlterUnitAliases = [];
   let _masterAlterWarehouseAliases = [];
 
+  // RBI-regulated banks operating in India (Public Sector, Domestic Private Sector,
+  // Small Finance, Payments, Regional Rural & Foreign Banks) — powers the searchable
+  // Bank Name field. Ref: https://www.rbi.org.in/commonman/english/scripts/BanksInIndia.aspx
+  const INDIAN_BANKS_LIST = [
+    // Public Sector Banks
+    'State Bank of India', 'Bank of Baroda', 'Bank of India', 'Bank of Maharashtra',
+    'Canara Bank', 'Central Bank of India', 'Indian Bank', 'Indian Overseas Bank',
+    'Punjab & Sind Bank', 'Punjab National Bank', 'UCO Bank', 'Union Bank of India',
+    // Domestic Private Sector Banks
+    'Axis Bank Limited', 'Bandhan Bank Limited', 'CSB Bank Limited', 'City Union Bank Limited',
+    'DCB Bank Limited', 'Dhanlaxmi Bank Limited', 'Federal Bank Limited', 'HDFC Bank Limited',
+    'ICICI Bank Limited', 'IndusInd Bank Limited', 'IDFC FIRST Bank Limited',
+    'Jammu & Kashmir Bank Limited', 'Karnataka Bank Limited', 'Karur Vysya Bank Limited',
+    'Kotak Mahindra Bank Limited', 'Nainital Bank Limited', 'RBL Bank Limited',
+    'South Indian Bank Limited', 'Tamilnad Mercantile Bank Limited', 'YES Bank Limited',
+    'IDBI Bank Limited',
+    // Small Finance Banks
+    'Au Small Finance Bank Limited', 'Capital Small Finance Bank Limited',
+    'Equitas Small Finance Bank Limited', 'ESAF Small Finance Bank Limited',
+    'Suryoday Small Finance Bank Limited', 'Ujjivan Small Finance Bank Limited',
+    'Utkarsh Small Finance Bank Limited', 'slice Small Finance Bank Limited',
+    'Jana Small Finance Bank Limited', 'Shivalik Small Finance Bank Limited',
+    'Unity Small Finance Bank Limited',
+    // Payments Banks
+    'India Post Payments Bank Limited', 'Fino Payments Bank Limited',
+    'Paytm Payments Bank Limited', 'Airtel Payments Bank Limited', 'NSDL Payments Bank Limited',
+    // Regional Rural Banks
+    'Andhra Pradesh Grameena Bank', 'Assam Gramin Bank', 'Arunachal Pradesh Rural Bank',
+    'Bihar Gramin Bank', 'Chhattisgarh Gramin Bank', 'Gujarat Gramin Bank',
+    'Haryana Gramin Bank', 'Himachal Pradesh Gramin Bank', 'Jharkhand Gramin Bank',
+    'Jammu and Kashmir Grameen Bank', 'Karnataka Grameena Bank', 'Kerala Grameena Bank',
+    'Maharashtra Gramin Bank', 'Madhya Pradesh Gramin Bank', 'Manipur Rural Bank',
+    'Meghalaya Rural Bank', 'Mizoram Rural Bank', 'Nagaland Rural Bank',
+    'Odisha Grameen Bank', 'Punjab Gramin Bank', 'Puducherry Grama Bank',
+    'Rajasthan Gramin Bank', 'Tamil Nadu Grama Bank', 'Telangana Grameena Bank',
+    'Tripura Gramin Bank', 'Uttar Pradesh Gramin Bank', 'Uttarakhand Gramin Bank',
+    'West Bengal Gramin Bank',
+    // Foreign Banks in India
+    'AB Bank PLC', 'American Express Banking Corporation',
+    'Australia and New Zealand Banking Group Ltd.', 'Barclays Bank Plc.',
+    'Bank of America National Association', 'Bank of Bahrain and Kuwait B.S.C.',
+    'Bank of Ceylon', 'Bank of China Limited', 'Bank of Nova Scotia', 'BNP Paribas',
+    'Citibank N.A.', 'Cooperatieve Rabobank U.A.',
+    'Credit Agricole Corporate and Investment Bank', 'CTBC Bank Co., Ltd.',
+    'DBS Bank India Limited', 'Deutsche Bank A.G.', 'Doha Bank Q.P.S.C',
+    'Emirates NBD Bank P.J.S.C', 'First Abu Dhabi Bank PJSC', 'FirstRand Bank Limited',
+    'Hong Kong and Shanghai Banking Corporation Limited', 'Industrial and Commercial Bank of China',
+    'Industrial Bank of Korea', 'J.P. Morgan Chase Bank N.A.', 'JSC VTB Bank', 'KEB Hana Bank',
+    'Kookmin Bank', 'Mashreqbank P.S.C', 'Mizuho Bank Ltd.', 'MUFG Bank, Ltd.',
+    'NatWest Markets Plc', 'NongHyup Bank', 'PT Bank Maybank Indonesia TBK',
+    'Qatar National Bank (Q.P.S.C.)', 'Sberbank', 'SBM Bank (India) Limited', 'Shinhan Bank',
+    'Societe Generale', 'Sonali Bank PLC', 'Standard Chartered Bank',
+    'Sumitomo Mitsui Banking Corporation', 'United Overseas Bank Limited', 'UBS AG', 'Woori Bank'
+  ].sort((a, b) => a.localeCompare(b));
+
   const KYA_STOCK_GROUPS_KEY = 'kya_master_stock_groups';
   const KYA_STOCK_CATEGORIES_KEY = 'kya_master_stock_categories';
   const KYA_UNITS_KEY = 'kya_master_units';
@@ -115,6 +170,326 @@
       .replace(/'/g, '&#39;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  // ── GSTIN / PAN validation (format + checksum) — matches Company Profile & Vault ──
+  const GSTIN_CODE_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  function gstinCheckDigit(gstin14) {
+    let factor = 2, sum = 0;
+    for (let i = 13; i >= 0; i--) {
+      const codePoint = GSTIN_CODE_CHARS.indexOf(gstin14[i]);
+      let d = factor * codePoint;
+      d = Math.floor(d / 36) + (d % 36);
+      sum += d;
+      factor = factor === 2 ? 1 : 2;
+    }
+    return GSTIN_CODE_CHARS[(36 - (sum % 36)) % 36];
+  }
+  function isValidGstin(raw) {
+    const match = /^([0-9]{2})([A-Z]{5}[0-9]{4}[A-Z])([1-9A-Z])(Z)([0-9A-Z])$/.test(raw);
+    return match && raw[14] === gstinCheckDigit(raw.slice(0, 14));
+  }
+  function isValidPan(raw) {
+    return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(raw);
+  }
+
+  // Wires live GSTIN/PAN validity status + "Update PAN from GSTIN" affordance onto an
+  // existing GSTIN/PAN input pair. Safe to call after every render (creates its DOM
+  // helpers once per fresh input, since contentArea is fully re-rendered each time).
+  function wireGstinPanValidation(container, gstinId, panId) {
+    const gstinInput = container.querySelector('#' + gstinId);
+    const panInput = container.querySelector('#' + panId);
+    if (!gstinInput || !panInput) return;
+
+    // Wrap GSTIN input + its status line in one box so it stays a single grid cell
+    // (keeps GSTIN & PAN side-by-side in the same row, status text below each).
+    // width:100%/min-width:0 are required here — once the input is no longer a direct
+    // grid item it loses the grid's automatic stretch/shrink sizing and will overflow
+    // the row without them.
+    const gstinCell = document.createElement('div');
+    gstinCell.style.cssText = 'width: 100%; min-width: 0;';
+    gstinInput.parentNode.insertBefore(gstinCell, gstinInput);
+    gstinCell.appendChild(gstinInput);
+    gstinInput.style.width = '100%';
+
+    const gstinStatus = document.createElement('div');
+    gstinStatus.id = gstinId + 'Status';
+    gstinStatus.style.cssText = 'font-size: 11px; font-weight: 600; margin-top: 5px; min-height: 14px;';
+    gstinCell.appendChild(gstinStatus);
+
+    // Wrap PAN input (input + inline Update button) + its status line, same as GSTIN cell
+    const panCell = document.createElement('div');
+    panCell.style.cssText = 'width: 100%; min-width: 0;';
+    panInput.parentNode.insertBefore(panCell, panInput);
+
+    const panFieldBox = document.createElement('div');
+    panFieldBox.style.cssText = 'position: relative; width: 100%; min-width: 0;';
+    panCell.appendChild(panFieldBox);
+    panFieldBox.appendChild(panInput);
+    panInput.style.width = '100%';
+    panInput.style.paddingRight = '70px';
+
+    // Matches Company Profile & Vault's "Update" affordance (same class + placement)
+    const panUpdateBtn = document.createElement('button');
+    panUpdateBtn.type = 'button';
+    panUpdateBtn.id = panId + 'UpdateBtn';
+    panUpdateBtn.className = 'sales-roundoff-btn-inline';
+    panUpdateBtn.textContent = 'Update';
+    panUpdateBtn.style.cssText = 'display: none; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); height: 26px; width: auto; min-width: 0; padding: 0 10px;';
+    panFieldBox.appendChild(panUpdateBtn);
+
+    const panStatus = document.createElement('div');
+    panStatus.id = panId + 'Status';
+    panStatus.style.cssText = 'font-size: 11px; font-weight: 600; margin-top: 5px; min-height: 14px;';
+    panCell.appendChild(panStatus);
+
+    const renderPanStatus = () => {
+      const raw = panInput.value.toUpperCase().trim();
+      if (!raw) {
+        panStatus.textContent = '';
+      } else if (isValidPan(raw)) {
+        panStatus.textContent = 'Valid PAN';
+        panStatus.style.color = '#059669';
+      } else {
+        panStatus.textContent = 'Invalid PAN';
+        panStatus.style.color = '#dc2626';
+      }
+    };
+
+    const renderGstinStatus = () => {
+      const raw = gstinInput.value.toUpperCase().trim();
+      panUpdateBtn.style.display = 'none';
+
+      if (!raw) {
+        gstinStatus.textContent = '';
+        return;
+      }
+      if (!isValidGstin(raw)) {
+        gstinStatus.textContent = 'Invalid GSTIN';
+        gstinStatus.style.color = '#dc2626';
+        return;
+      }
+
+      gstinStatus.textContent = 'Valid GSTIN';
+      gstinStatus.style.color = '#059669';
+
+      const panFromGstin = raw.slice(2, 12);
+      const currentPan = panInput.value.trim().toUpperCase();
+      if (!currentPan) {
+        panInput.value = panFromGstin;
+        renderPanStatus();
+      } else if (currentPan !== panFromGstin) {
+        panUpdateBtn.style.display = 'block';
+      }
+    };
+
+    gstinInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase();
+      renderGstinStatus();
+    });
+    panInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase();
+      renderPanStatus();
+    });
+    panUpdateBtn.addEventListener('click', () => {
+      const raw = gstinInput.value.toUpperCase().trim();
+      if (isValidGstin(raw)) {
+        panInput.value = raw.slice(2, 12);
+        panUpdateBtn.style.display = 'none';
+        renderPanStatus();
+      }
+    });
+
+    renderGstinStatus();
+    renderPanStatus();
+  }
+
+  // ── Generic Code -> Description combobox (HSN / SAC and similar code masters) ──
+  // Code is searchable; Description is a read-only display auto-filled from the
+  // selected code, showing a hover popup when its text is truncated.
+  function wireCodeDescComboField(container, codePrefix, descPrefix, codeList, noun) {
+    const list = Array.isArray(codeList) ? codeList : [];
+
+    const codeHidden = container.querySelector('#' + codePrefix);
+    const codeTrigger = container.querySelector('#' + codePrefix + 'Trigger');
+    const codeTriggerText = container.querySelector('#' + codePrefix + 'TriggerText');
+    const codeDropdown = container.querySelector('#' + codePrefix + 'Dropdown');
+    const codeSearch = container.querySelector('#' + codePrefix + 'Search');
+    const codeOptionsList = container.querySelector('#' + codePrefix + 'OptionsList');
+
+    const descHidden = container.querySelector('#' + descPrefix);
+    const descTrigger = container.querySelector('#' + descPrefix + 'Trigger');
+    const descTriggerText = container.querySelector('#' + descPrefix + 'TriggerText');
+
+    if (!codeHidden || !descHidden || !codeTrigger) return;
+
+    const MAX_RESULTS = 60;
+
+    const setPair = (code, desc) => {
+      codeHidden.value = code || '';
+      codeTriggerText.textContent = code || ('Search ' + noun + ' code...');
+      codeTriggerText.style.color = code ? 'var(--slate-700)' : 'var(--slate-400)';
+
+      descHidden.value = desc || '';
+      if (descTriggerText) {
+        descTriggerText.textContent = desc || ('Auto-filled from ' + noun + ' Code');
+        descTriggerText.style.color = desc ? 'var(--slate-700)' : 'var(--slate-400)';
+      }
+    };
+
+    // Hover popup for the truncated description box
+    if (descTrigger && descTriggerText) {
+      let descTooltip = null;
+      descTrigger.addEventListener('mouseenter', () => {
+        const isTruncated = descTriggerText.scrollWidth > descTriggerText.clientWidth;
+        const text = descHidden.value;
+        if (!isTruncated || !text) return;
+
+        descTooltip = document.createElement('div');
+        descTooltip.textContent = text;
+        descTooltip.style.cssText = 'position: fixed; z-index: 3000; max-width: 320px; max-height: 240px; overflow-y: auto; padding: 8px 12px; font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--slate-700); background: #fff; border: 1.5px solid var(--slate-200); border-radius: 8px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1));';
+        document.body.appendChild(descTooltip);
+
+        const rect = descTrigger.getBoundingClientRect();
+        const tipRect = descTooltip.getBoundingClientRect();
+        let top = rect.bottom + 6;
+        let left = rect.left;
+        if (left + tipRect.width > window.innerWidth - 8) {
+          left = Math.max(8, window.innerWidth - tipRect.width - 8);
+        }
+        if (top + tipRect.height > window.innerHeight - 8) {
+          top = rect.top - tipRect.height - 6;
+        }
+        top = Math.max(8, top);
+        descTooltip.style.top = top + 'px';
+        descTooltip.style.left = left + 'px';
+      });
+      descTrigger.addEventListener('mouseleave', () => {
+        if (descTooltip) {
+          descTooltip.remove();
+          descTooltip = null;
+        }
+      });
+    }
+
+    const filterList = (query) => {
+      const q = query.toLowerCase().trim();
+      if (!q) return [];
+      return list.filter(pair => pair[0].toLowerCase().includes(q) || pair[1].toLowerCase().includes(q));
+    };
+
+    const renderRows = (optionsList, matches, query, onUseTyped) => {
+      optionsList.innerHTML = '';
+
+      matches.slice(0, MAX_RESULTS).forEach(([code, desc]) => {
+        const item = document.createElement('div');
+        item.style.padding = '8px 12px';
+        item.style.fontSize = '13px';
+        item.style.borderRadius = '6px';
+        item.style.cursor = 'pointer';
+        item.style.lineHeight = '1.4';
+        item.innerHTML = '<span style="font-weight:700; color: var(--blue-700);">' + escapeHtml(code) +
+          '</span><span style="color: var(--slate-400);"> &mdash; </span>' +
+          '<span style="color: var(--slate-700);">' + escapeHtml(desc) + '</span>';
+
+        item.addEventListener('mouseover', () => { item.style.background = 'var(--slate-50)'; });
+        item.addEventListener('mouseout', () => { item.style.background = 'transparent'; });
+        item.addEventListener('click', () => {
+          setPair(code, desc);
+          codeDropdown.style.display = 'none';
+        });
+
+        optionsList.appendChild(item);
+      });
+
+      if (matches.length === 0) {
+        if (query) {
+          const useRow = document.createElement('div');
+          useRow.style.padding = '8px 12px';
+          useRow.style.fontSize = '12.5px';
+          useRow.style.fontWeight = '600';
+          useRow.style.color = 'var(--blue-700)';
+          useRow.style.cursor = 'pointer';
+          useRow.textContent = 'Use "' + query + '" as typed';
+          useRow.addEventListener('mouseover', () => { useRow.style.background = 'var(--slate-50)'; });
+          useRow.addEventListener('mouseout', () => { useRow.style.background = 'transparent'; });
+          useRow.addEventListener('click', () => {
+            onUseTyped(query);
+            codeDropdown.style.display = 'none';
+          });
+          optionsList.appendChild(useRow);
+        } else {
+          const emptyState = document.createElement('div');
+          emptyState.style.padding = '10px 12px';
+          emptyState.style.fontSize = '12px';
+          emptyState.style.color = 'var(--slate-400)';
+          emptyState.textContent = 'No matching ' + noun + ' code found';
+          optionsList.appendChild(emptyState);
+        }
+      } else if (matches.length > MAX_RESULTS) {
+        const moreState = document.createElement('div');
+        moreState.style.padding = '8px 12px 2px 12px';
+        moreState.style.fontSize = '11px';
+        moreState.style.color = 'var(--slate-400)';
+        moreState.style.textAlign = 'center';
+        moreState.textContent = '+' + (matches.length - MAX_RESULTS) + ' more — refine your search';
+        optionsList.appendChild(moreState);
+      }
+    };
+
+    const showInitialPrompt = (optionsList) => {
+      optionsList.innerHTML = '';
+      const prompt = document.createElement('div');
+      prompt.style.padding = '10px 12px';
+      prompt.style.fontSize = '12px';
+      prompt.style.color = 'var(--slate-400)';
+      prompt.textContent = 'Type to search ' + list.length.toLocaleString('en-IN') + ' ' + noun + ' codes...';
+      optionsList.appendChild(prompt);
+    };
+
+    const openDropdown = (dropdown, searchInput, optionsList) => {
+      document.querySelectorAll('.kya-searchable-select-dropdown').forEach(dd => {
+        if (dd !== dropdown) dd.style.display = 'none';
+      });
+      dropdown.style.display = 'flex';
+      searchInput.value = '';
+      showInitialPrompt(optionsList);
+      setTimeout(() => searchInput.focus(), 50);
+    };
+
+    codeTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = codeDropdown.style.display === 'flex';
+      if (!isOpen) {
+        openDropdown(codeDropdown, codeSearch, codeOptionsList);
+      } else {
+        codeDropdown.style.display = 'none';
+      }
+    });
+    codeSearch.addEventListener('input', (e) => {
+      const q = e.target.value;
+      renderRows(codeOptionsList, filterList(q), q.trim(), (typed) => setPair(typed, descHidden.value));
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!codeDropdown.contains(e.target) && !codeTrigger.contains(e.target)) {
+        codeDropdown.style.display = 'none';
+      }
+    });
+  }
+
+  // HSN Code <-> Description (Master Desk > Stock Item)
+  // Backed by window.HSN_CODE_LIST ([code, description] pairs) from js/hsn-codes.js.
+  function wireHsnCodeDescFields(container, codePrefix, descPrefix) {
+    const hsnList = (typeof window !== 'undefined' && Array.isArray(window.HSN_CODE_LIST)) ? window.HSN_CODE_LIST : [];
+    wireCodeDescComboField(container, codePrefix, descPrefix, hsnList, 'HSN');
+  }
+
+  // SAC Code <-> Description (Master Desk > Ledger — Revenue from Operations group)
+  // Backed by window.SAC_CODE_LIST ([code, description] pairs) from js/sac-codes.js.
+  function wireSacCodeDescFields(container, codePrefix, descPrefix) {
+    const sacList = (typeof window !== 'undefined' && Array.isArray(window.SAC_CODE_LIST)) ? window.SAC_CODE_LIST : [];
+    wireCodeDescComboField(container, codePrefix, descPrefix, sacList, 'SAC');
   }
 
   function syncStockGroupsToCoa() {
@@ -500,6 +875,11 @@
 
   function isTradePartyGroup(groupVal) {
     if (!groupVal) return false;
+    return isTradeReceivableGroup(groupVal) || isTradePayableGroup(groupVal);
+  }
+
+  function isTradeReceivableGroup(groupVal) {
+    if (!groupVal) return false;
     const [pType, pId] = groupVal.split(':');
 
     let targetSgId = pId;
@@ -513,14 +893,54 @@
       }
     }
 
-    if (targetSgId === 'sg-tr' || targetSgId === 'sg-tp') return true;
+    if (targetSgId === 'sg-tr') return true;
 
     if (targetName && (
       targetName.includes('receivable') ||
-      targetName.includes('payable') ||
       targetName.includes('debtor') ||
+      targetName.includes('customer')
+    )) {
+      return true;
+    }
+
+    if (typeof COA_SYS_SGS !== 'undefined') {
+      const sg = COA_SYS_SGS.find(s => s.id === targetSgId);
+      if (sg) {
+        if (sg.id === 'sg-tr' || sg.parent === 'sg-tr') return true;
+        const sName = (sg.name || '').toLowerCase();
+        if (
+          sName.includes('receivable') ||
+          sName.includes('debtor') ||
+          sName.includes('customer')
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  function isTradePayableGroup(groupVal) {
+    if (!groupVal) return false;
+    const [pType, pId] = groupVal.split(':');
+
+    let targetSgId = pId;
+    let targetName = '';
+
+    if (pType === 'gl') {
+      const gl = typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(pId)) : null;
+      if (gl) {
+        targetSgId = gl.sgId;
+        targetName = (gl.name || '').toLowerCase();
+      }
+    }
+
+    if (targetSgId === 'sg-tp') return true;
+
+    if (targetName && (
+      targetName.includes('payable') ||
       targetName.includes('creditor') ||
-      targetName.includes('customer') ||
       targetName.includes('supplier') ||
       targetName.includes('vendor')
     )) {
@@ -530,19 +950,65 @@
     if (typeof COA_SYS_SGS !== 'undefined') {
       const sg = COA_SYS_SGS.find(s => s.id === targetSgId);
       if (sg) {
-        if (sg.id === 'sg-tr' || sg.id === 'sg-tp' || sg.parent === 'sg-tr' || sg.parent === 'sg-tp') return true;
+        if (sg.id === 'sg-tp' || sg.parent === 'sg-tp') return true;
         const sName = (sg.name || '').toLowerCase();
         if (
-          sName.includes('receivable') ||
           sName.includes('payable') ||
-          sName.includes('debtor') ||
           sName.includes('creditor') ||
-          sName.includes('customer') ||
           sName.includes('supplier') ||
           sName.includes('vendor')
         ) {
           return true;
         }
+      }
+    }
+
+    return false;
+  }
+
+  function isBankAccountGroup(groupVal) {
+    if (!groupVal) return false;
+    const [pType, pId] = groupVal.split(':');
+
+    let targetName = '';
+
+    if (pType === 'gl') {
+      const gl = typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(pId)) : null;
+      if (gl) targetName = (gl.name || '').toLowerCase();
+    } else if (pType === 'sg') {
+      if (typeof COA_SYS_SGS !== 'undefined') {
+        const sg = COA_SYS_SGS.find(s => s.id === pId);
+        if (sg) targetName = (sg.name || '').toLowerCase();
+      }
+    }
+
+    return targetName.includes('bank');
+  }
+
+  function isRevenueFromOperationsGroup(groupVal) {
+    if (!groupVal) return false;
+    const [pType, pId] = groupVal.split(':');
+
+    let targetSgId = pId;
+    let targetName = '';
+
+    if (pType === 'gl') {
+      const gl = typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(pId)) : null;
+      if (gl) {
+        targetSgId = gl.sgId;
+        targetName = (gl.name || '').toLowerCase();
+      }
+    }
+
+    if (targetSgId === 'sg-rfo') return true;
+    if (targetName.includes('revenue from operations')) return true;
+
+    if (typeof COA_SYS_SGS !== 'undefined') {
+      const sg = COA_SYS_SGS.find(s => s.id === targetSgId);
+      if (sg) {
+        if (sg.id === 'sg-rfo' || sg.parent === 'sg-rfo') return true;
+        const sName = (sg.name || '').toLowerCase();
+        if (sName.includes('revenue from operations')) return true;
       }
     }
 
@@ -2730,6 +3196,8 @@
         });
       }
 
+      let _masterLedgerSaveAsMode = 'ledger';
+
       contentArea.innerHTML = `
         <div class="coa-modal-card" style="max-width: 600px; box-shadow: none; border: 1px solid var(--slate-200); border-radius: 12px; padding: 24px; background: var(--white); margin: 0 0 20px 0;">
           <h3 style="font-size: 15px; font-weight: 700; color: var(--slate-800); margin: 0 0 18px 0; display: flex; align-items: center; gap: 8px;">
@@ -2780,7 +3248,7 @@
           <!-- Additional Information (Dynamic for Trade Receivable / Payable) -->
           <div id="masterLedgerAdditionalInfoWrap" style="display: none; background: #f8fafc; border: 1.5px solid var(--slate-200); border-radius: 10px; padding: 18px; margin-bottom: 20px; transition: all 0.2s ease;">
             
-            <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
               <div style="display: flex; align-items: center; gap: 7px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -2788,7 +3256,16 @@
                 </svg>
                 <span>Additional Information</span>
               </div>
-              <span style="font-size: 11px; font-weight: 600; background: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; border: 1px solid #dbeafe;">Party Profile</span>
+
+              <!-- Right Side Slide: Save As [ Ledger | Customer / Supplier ] -->
+              <div class="master-saveas-wrap" id="masterLedgerSaveAsWrap" style="display: flex; align-items: center; gap: 8px;">
+                <span class="master-saveas-label">Save As</span>
+                <div class="master-saveas-slider-wrap">
+                  <div class="master-saveas-slider-bg ledger-active" id="masterLedgerSaveAsBg"></div>
+                  <button type="button" class="master-saveas-btn active" id="masterLedgerSaveAsLedgerBtn">Ledger</button>
+                  <button type="button" class="master-saveas-btn" id="masterLedgerSaveAsPartyBtn">Customer</button>
+                </div>
+              </div>
             </div>
 
             <!-- 1. Address & Location Details -->
@@ -2869,6 +3346,152 @@
             <input class="coa-modal-inp" id="masterLedgerBalance" type="number" min="0" step="0.01" placeholder="0.00" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box;">
           </div>
 
+          <!-- Additional Information (Dynamic for Bank Account group) -->
+          <div id="masterLedgerBankAcctWrap" style="display: none; background: #f8fafc; border: 1.5px solid var(--slate-200); border-radius: 10px; padding: 18px; margin-bottom: 24px; transition: all 0.2s ease;">
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); margin-bottom: 14px; display: flex; align-items: center; gap: 7px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                <line x1="2" y1="10" x2="22" y2="10"></line>
+              </svg>
+              <span>Additional Information</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="kya-searchable-select-wrap" id="masterLedgerBankAcctBankNameWrap" style="position: relative; width: 100%;">
+                  <input type="hidden" id="masterLedgerBankAcctBankName" value="">
+                  <div class="kya-searchable-select-trigger" id="masterLedgerBankAcctBankNameTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border: 1.5px solid var(--slate-200); border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--slate-400);">
+                    <span id="masterLedgerBankAcctBankNameTriggerText">Search or select bank...</span>
+                    <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                  </div>
+                  <div class="kya-searchable-select-dropdown" id="masterLedgerBankAcctBankNameDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <input type="text" id="masterLedgerBankAcctBankNameSearch" placeholder="Search bank name..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                    <div id="masterLedgerBankAcctBankNameOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                  </div>
+                </div>
+                <input type="text" id="masterLedgerBankAcctHolder" placeholder="Account Holder Name" style="padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <input type="text" id="masterLedgerBankAcctNo" placeholder="Account No" style="padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+                <input type="text" id="masterLedgerBankAcctIfsc" placeholder="IFSC Code (e.g. HDFC0001234)" style="padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff; text-transform: uppercase;">
+              </div>
+              <div>
+                <input type="text" id="masterLedgerBankAcctBranch" placeholder="Branch" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+              </div>
+            </div>
+
+            <div style="border-top: 1px dashed var(--slate-200); margin-bottom: 14px;"></div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-size: 10.5px; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.07em; display: flex; align-items: center; gap: 5px; margin: 0;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                  &nbsp;Upload QR Code (Image Only)
+                </label>
+                <span id="masterLedgerBankAcctQrStatusBadge" style="display: none; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #ecfdf5; color: #059669; text-transform: uppercase;">Attached</span>
+              </div>
+
+              <input type="file" id="masterLedgerBankAcctQrInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml" style="display: none;">
+
+              <div id="masterLedgerBankAcctQrDropzone" style="border: 1.5px dashed var(--slate-300); border-radius: 10px; padding: 12px 14px; text-align: center; background: #fff; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#2563eb'; this.style.background='#eff6ff';" onmouseout="this.style.borderColor='var(--slate-300)'; this.style.background='#fff';">
+
+                <!-- Empty State -->
+                <div id="masterLedgerBankAcctQrEmptyState" style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background: #f8fafc; border: 1px solid var(--slate-200); display: flex; align-items: center; justify-content: center; color: #2563eb; flex-shrink: 0;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                  </div>
+                  <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left;">
+                    <span style="font-size: 12.5px; font-weight: 600; color: var(--slate-700);">Click or Drag to Upload QR Code</span>
+                    <span style="font-size: 10.5px; color: var(--slate-400);">PNG, JPG, WEBP, SVG (Max 5MB)</span>
+                  </div>
+                </div>
+
+                <!-- Selected State -->
+                <div id="masterLedgerBankAcctQrSelectedState" style="display: none; align-items: center; justify-content: space-between; gap: 10px;">
+                  <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+                    <img id="masterLedgerBankAcctQrPreviewImg" src="" alt="QR Code" style="width: 34px; height: 34px; object-fit: contain; border-radius: 6px; border: 1px solid var(--slate-200); background: #fff; flex-shrink: 0;">
+                    <div style="display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; text-align: left;">
+                      <span id="masterLedgerBankAcctQrFileName" style="font-size: 12.5px; font-weight: 700; color: var(--slate-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;"></span>
+                      <span id="masterLedgerBankAcctQrFileSize" style="font-size: 10.5px; color: var(--slate-500); font-weight: 500;"></span>
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <a id="masterLedgerBankAcctQrPreviewBtn" href="#" target="_blank" style="padding: 4px 9px; font-size: 11.5px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; text-decoration: none;" title="View full image">View</a>
+                    <button id="masterLedgerBankAcctQrRemoveBtn" type="button" style="background: none; border: none; color: #dc2626; cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center;" title="Remove QR code">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Information (Dynamic for Revenue from Operations group) -->
+          <div id="masterLedgerSacWrap" style="display: none; background: #f8fafc; border: 1.5px solid var(--slate-200); border-radius: 10px; padding: 18px; margin-bottom: 24px; transition: all 0.2s ease;">
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); margin-bottom: 14px; display: flex; align-items: center; gap: 7px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Additional Information</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+              <div style="min-width: 0;">
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">SAC Code</label>
+                <div class="kya-searchable-select-wrap" id="masterLedgerSacCodeWrap" style="position: relative; width: 100%;">
+                  <input type="hidden" id="masterLedgerSacCode" value="">
+                  <div class="kya-searchable-select-trigger" id="masterLedgerSacCodeTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border: 1.5px solid var(--slate-200); border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--slate-400);">
+                    <span id="masterLedgerSacCodeTriggerText">Search or select SAC code...</span>
+                    <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                  </div>
+                  <div class="kya-searchable-select-dropdown" id="masterLedgerSacCodeDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <input type="text" id="masterLedgerSacCodeSearch" placeholder="Search by SAC code..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                    <div id="masterLedgerSacCodeOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                  </div>
+                </div>
+              </div>
+              <div style="min-width: 0;">
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">SAC Description</label>
+                <div style="position: relative; width: 100%; min-width: 0;">
+                  <input type="hidden" id="masterLedgerSacDesc" value="">
+                  <div id="masterLedgerSacDescTrigger" style="display: flex; align-items: center; padding: 8px 12px; border: 1.5px solid var(--slate-200); border-radius: 7px; background: #fff; cursor: default; font-size: 13px; font-weight: 500; color: var(--slate-400); overflow: hidden;">
+                    <span id="masterLedgerSacDescTriggerText" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto;">Auto-filled from SAC Code</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">Rate</label>
+                <input type="number" min="0" step="0.01" id="masterLedgerSacRate" placeholder="0.00" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+              </div>
+              <div>
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">GST / Tax Rate (%)</label>
+                <select id="masterLedgerSacGstSel" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+                  <option value="0">0% (Nil / Exempt)</option>
+                  <option value="5">5% GST</option>
+                  <option value="12">12% GST</option>
+                  <option value="18" selected>18% GST</option>
+                  <option value="28">28% GST</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div style="display: flex; gap: 12px; align-items: center;">
             <button class="btn btn-primary" id="masterLedgerSaveBtn" style="height: 38px; padding: 8px 16px; font-size: 13px; font-weight: 600;">＋ Create Ledger</button>
             <button class="btn btn-secondary" id="masterLedgerCancelBtn" style="height: 38px; padding: 8px 16px; font-size: 13px; font-weight: 600;">Cancel</button>
@@ -2892,13 +3515,75 @@
 
       const searchableGroupControl = initSearchableSelectHelper(contentArea, 'masterLedgerGroupCombinedSel', 'Select Group');
 
-      // Additional Information Dynamic Visibility
+      // Additional Information Dynamic Visibility and Save As Slider Toggle
       const groupSel = contentArea.querySelector('#masterLedgerGroupCombinedSel');
       const addInfoWrap = contentArea.querySelector('#masterLedgerAdditionalInfoWrap');
+      const bankAcctWrap = contentArea.querySelector('#masterLedgerBankAcctWrap');
+      const sacWrap = contentArea.querySelector('#masterLedgerSacWrap');
+      const saveAsLedgerBtn = contentArea.querySelector('#masterLedgerSaveAsLedgerBtn');
+      const saveAsPartyBtn = contentArea.querySelector('#masterLedgerSaveAsPartyBtn');
+      const saveAsBg = contentArea.querySelector('#masterLedgerSaveAsBg');
+      const saveBtn = contentArea.querySelector('#masterLedgerSaveBtn');
+
+      const applySaveAsModeUi = () => {
+        if (!saveAsBg || !saveAsLedgerBtn || !saveAsPartyBtn || !saveBtn) return;
+        const isPay = isTradePayableGroup(groupSel ? groupSel.value : '');
+        const partyLabel = isPay ? 'Supplier' : 'Customer';
+        saveAsPartyBtn.textContent = partyLabel;
+
+        if (_masterLedgerSaveAsMode === 'party' || _masterLedgerSaveAsMode === 'customer' || _masterLedgerSaveAsMode === 'supplier') {
+          _masterLedgerSaveAsMode = isPay ? 'supplier' : 'customer';
+          saveAsBg.className = 'master-saveas-slider-bg party-active';
+          saveAsLedgerBtn.className = 'master-saveas-btn';
+          saveAsPartyBtn.className = 'master-saveas-btn active';
+          saveBtn.textContent = `＋ Create ${partyLabel}`;
+        } else {
+          _masterLedgerSaveAsMode = 'ledger';
+          saveAsBg.className = 'master-saveas-slider-bg ledger-active';
+          saveAsLedgerBtn.className = 'master-saveas-btn active';
+          saveAsPartyBtn.className = 'master-saveas-btn';
+          saveBtn.textContent = '＋ Create Ledger';
+        }
+      };
+
+      if (saveAsLedgerBtn) {
+        saveAsLedgerBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          _masterLedgerSaveAsMode = 'ledger';
+          applySaveAsModeUi();
+        });
+      }
+
+      if (saveAsPartyBtn) {
+        saveAsPartyBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const isPay = isTradePayableGroup(groupSel ? groupSel.value : '');
+          _masterLedgerSaveAsMode = isPay ? 'supplier' : 'customer';
+          applySaveAsModeUi();
+        });
+      }
+
       const updateAdditionalInfoVisibility = () => {
         if (!groupSel || !addInfoWrap) return;
-        const isParty = isTradePartyGroup(groupSel.value);
+        const isRec = isTradeReceivableGroup(groupSel.value);
+        const isPay = isTradePayableGroup(groupSel.value);
+        const isParty = isRec || isPay;
+
         addInfoWrap.style.display = isParty ? 'block' : 'none';
+        if (isParty) {
+          applySaveAsModeUi();
+        } else {
+          _masterLedgerSaveAsMode = 'ledger';
+          if (saveBtn) saveBtn.textContent = '＋ Create Ledger';
+        }
+
+        if (bankAcctWrap) {
+          bankAcctWrap.style.display = isBankAccountGroup(groupSel.value) ? 'block' : 'none';
+        }
+
+        if (sacWrap) {
+          sacWrap.style.display = isRevenueFromOperationsGroup(groupSel.value) ? 'block' : 'none';
+        }
       };
 
       if (groupSel) {
@@ -2906,32 +3591,201 @@
         updateAdditionalInfoVisibility();
       }
 
-      // GSTIN / PAN / IFSC Auto Uppercase & Auto-fill
-      const gstinInp = contentArea.querySelector('#masterLedgerGstin');
-      const panInp = contentArea.querySelector('#masterLedgerPan');
+      // GSTIN / PAN live validity check + Update-PAN-from-GSTIN (matches Company Profile & Vault)
+      wireGstinPanValidation(contentArea, 'masterLedgerGstin', 'masterLedgerPan');
       const ifscInp = contentArea.querySelector('#masterLedgerIfsc');
-
-      if (gstinInp) {
-        gstinInp.addEventListener('input', (e) => {
-          const val = e.target.value.toUpperCase();
-          e.target.value = val;
-          if (val.length >= 12 && panInp && !panInp.value) {
-            panInp.value = val.substring(2, 12);
-          }
-        });
-      }
-      if (panInp) {
-        panInp.addEventListener('input', (e) => {
-          e.target.value = e.target.value.toUpperCase();
-        });
-      }
       if (ifscInp) {
         ifscInp.addEventListener('input', (e) => {
           e.target.value = e.target.value.toUpperCase();
         });
       }
 
-      const saveBtn = contentArea.querySelector('#masterLedgerSaveBtn');
+      // Revenue from Operations group: searchable SAC Code -> Description
+      wireSacCodeDescFields(contentArea, 'masterLedgerSacCode', 'masterLedgerSacDesc');
+
+      // Bank Account group: IFSC auto-uppercase + QR code upload
+      const bankAcctIfscInp = contentArea.querySelector('#masterLedgerBankAcctIfsc');
+      if (bankAcctIfscInp) {
+        bankAcctIfscInp.addEventListener('input', (e) => {
+          e.target.value = e.target.value.toUpperCase();
+        });
+      }
+
+      // Bank Account group: searchable Bank Name field (matches Group field's
+      // trigger + caret + in-dropdown search box pattern)
+      const bankNameHidden = contentArea.querySelector('#masterLedgerBankAcctBankName');
+      const bankNameTrigger = contentArea.querySelector('#masterLedgerBankAcctBankNameTrigger');
+      const bankNameTriggerText = contentArea.querySelector('#masterLedgerBankAcctBankNameTriggerText');
+      const bankNameDropdown = contentArea.querySelector('#masterLedgerBankAcctBankNameDropdown');
+      const bankNameSearch = contentArea.querySelector('#masterLedgerBankAcctBankNameSearch');
+      const bankNameOptionsList = contentArea.querySelector('#masterLedgerBankAcctBankNameOptionsList');
+
+      if (bankNameHidden && bankNameTrigger && bankNameTriggerText && bankNameDropdown && bankNameSearch && bankNameOptionsList) {
+        const setBankName = (val) => {
+          bankNameHidden.value = val;
+          bankNameTriggerText.textContent = val || 'Search or select bank...';
+          bankNameTriggerText.style.color = val ? 'var(--slate-700)' : 'var(--slate-400)';
+        };
+
+        const renderBankOptions = (filter = '') => {
+          bankNameOptionsList.innerHTML = '';
+          const query = filter.toLowerCase().trim();
+          const matches = query ? INDIAN_BANKS_LIST.filter(b => b.toLowerCase().includes(query)) : INDIAN_BANKS_LIST;
+
+          const renderRow = (label, value, isSelected) => {
+            const item = document.createElement('div');
+            item.textContent = label;
+            item.style.padding = '8.5px 12px';
+            item.style.fontSize = '13.5px';
+            item.style.borderRadius = '6px';
+            item.style.cursor = 'pointer';
+            item.style.fontWeight = isSelected ? '700' : '500';
+            item.style.background = isSelected ? 'var(--blue-50)' : 'transparent';
+            item.style.color = isSelected ? 'var(--blue-700)' : 'var(--slate-700)';
+
+            item.addEventListener('mouseover', () => {
+              if (!isSelected) item.style.background = 'var(--slate-50)';
+            });
+            item.addEventListener('mouseout', () => {
+              if (!isSelected) item.style.background = 'transparent';
+            });
+            item.addEventListener('click', () => {
+              setBankName(value);
+              bankNameDropdown.style.display = 'none';
+            });
+
+            bankNameOptionsList.appendChild(item);
+          };
+
+          matches.forEach(bankName => renderRow(bankName, bankName, bankNameHidden.value === bankName));
+
+          if (matches.length === 0 && query) {
+            const emptyState = document.createElement('div');
+            emptyState.style.padding = '10px 12px';
+            emptyState.style.fontSize = '12px';
+            emptyState.style.color = 'var(--slate-400)';
+            emptyState.textContent = 'No matching bank found';
+            bankNameOptionsList.appendChild(emptyState);
+            renderRow(`Use "${filter.trim()}"`, filter.trim(), false);
+          }
+        };
+
+        bankNameTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = bankNameDropdown.style.display === 'flex';
+          if (!isOpen) {
+            document.querySelectorAll('.kya-searchable-select-dropdown').forEach(dd => {
+              if (dd !== bankNameDropdown) dd.style.display = 'none';
+            });
+            bankNameDropdown.style.display = 'flex';
+            bankNameSearch.value = '';
+            renderBankOptions('');
+            setTimeout(() => bankNameSearch.focus(), 50);
+          } else {
+            bankNameDropdown.style.display = 'none';
+          }
+        });
+
+        bankNameSearch.addEventListener('input', (e) => renderBankOptions(e.target.value));
+
+        document.addEventListener('click', (e) => {
+          if (!bankNameDropdown.contains(e.target) && !bankNameTrigger.contains(e.target)) {
+            bankNameDropdown.style.display = 'none';
+          }
+        });
+      }
+
+      let _masterLedgerBankAcctQrData = null;
+      const bankAcctQrInput = contentArea.querySelector('#masterLedgerBankAcctQrInput');
+      const bankAcctQrDropzone = contentArea.querySelector('#masterLedgerBankAcctQrDropzone');
+      const bankAcctQrEmptyState = contentArea.querySelector('#masterLedgerBankAcctQrEmptyState');
+      const bankAcctQrSelectedState = contentArea.querySelector('#masterLedgerBankAcctQrSelectedState');
+      const bankAcctQrStatusBadge = contentArea.querySelector('#masterLedgerBankAcctQrStatusBadge');
+      const bankAcctQrPreviewImg = contentArea.querySelector('#masterLedgerBankAcctQrPreviewImg');
+      const bankAcctQrFileNameEl = contentArea.querySelector('#masterLedgerBankAcctQrFileName');
+      const bankAcctQrFileSizeEl = contentArea.querySelector('#masterLedgerBankAcctQrFileSize');
+      const bankAcctQrPreviewBtn = contentArea.querySelector('#masterLedgerBankAcctQrPreviewBtn');
+      const bankAcctQrRemoveBtn = contentArea.querySelector('#masterLedgerBankAcctQrRemoveBtn');
+
+      const formatQrBytes = (bytes) => {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      };
+
+      const updateQrUI = (doc) => {
+        _masterLedgerBankAcctQrData = doc;
+
+        if (!doc || !doc.fileData) {
+          if (bankAcctQrEmptyState) bankAcctQrEmptyState.style.display = 'flex';
+          if (bankAcctQrSelectedState) bankAcctQrSelectedState.style.display = 'none';
+          if (bankAcctQrStatusBadge) bankAcctQrStatusBadge.style.display = 'none';
+          if (bankAcctQrInput) bankAcctQrInput.value = '';
+          if (bankAcctQrPreviewImg) bankAcctQrPreviewImg.src = '';
+          return;
+        }
+
+        if (bankAcctQrEmptyState) bankAcctQrEmptyState.style.display = 'none';
+        if (bankAcctQrSelectedState) bankAcctQrSelectedState.style.display = 'flex';
+        if (bankAcctQrStatusBadge) bankAcctQrStatusBadge.style.display = 'inline-block';
+        if (bankAcctQrPreviewImg) bankAcctQrPreviewImg.src = doc.fileData;
+        if (bankAcctQrFileNameEl) bankAcctQrFileNameEl.textContent = doc.fileName || 'QR Code';
+        if (bankAcctQrFileSizeEl) bankAcctQrFileSizeEl.textContent = doc.fileSize || formatQrBytes(doc.fileBytes || 0);
+        if (bankAcctQrPreviewBtn) bankAcctQrPreviewBtn.href = doc.fileData;
+      };
+
+      const handleQrUpload = (file) => {
+        if (!file) return;
+        if (!file.type || !file.type.startsWith('image/')) {
+          if (typeof showToast === 'function') showToast('Only image files are supported for the QR code.', 'error');
+          else alert('Only image files are supported for the QR code.');
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          if (typeof showToast === 'function') showToast('Image size exceeds 5MB limit.', 'error');
+          else alert('Image size exceeds 5MB limit.');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          updateQrUI({
+            fileName: file.name,
+            fileSize: formatQrBytes(file.size),
+            fileBytes: file.size,
+            fileData: ev.target.result
+          });
+        };
+        reader.readAsDataURL(file);
+      };
+
+      if (bankAcctQrDropzone && bankAcctQrInput) {
+        bankAcctQrDropzone.addEventListener('click', (e) => {
+          if (e.target.closest('#masterLedgerBankAcctQrPreviewBtn') || e.target.closest('#masterLedgerBankAcctQrRemoveBtn')) return;
+          bankAcctQrInput.click();
+        });
+        bankAcctQrInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (file) handleQrUpload(file);
+        });
+        bankAcctQrDropzone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); bankAcctQrDropzone.style.borderColor = '#2563eb'; bankAcctQrDropzone.style.background = '#eff6ff'; });
+        bankAcctQrDropzone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); bankAcctQrDropzone.style.borderColor = 'var(--slate-300)'; bankAcctQrDropzone.style.background = '#fff'; });
+        bankAcctQrDropzone.addEventListener('drop', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          bankAcctQrDropzone.style.borderColor = 'var(--slate-300)'; bankAcctQrDropzone.style.background = '#fff';
+          const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (file) handleQrUpload(file);
+        });
+      }
+
+      if (bankAcctQrRemoveBtn) {
+        bankAcctQrRemoveBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          updateQrUI(null);
+        });
+      }
+
       const cancelBtn = contentArea.querySelector('#masterLedgerCancelBtn');
       const nameInp = contentArea.querySelector('#masterLedgerName');
       const nameErr = contentArea.querySelector('#masterLedgerNameError');
@@ -2962,6 +3816,21 @@
       };
 
       if (nameInp) {
+        nameInp.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && (!nameInp.value || nameInp.value.trim() === '')) {
+            if (_masterDeskReturnContext) {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelMasterDeskReturn();
+            }
+          } else if (e.key === 'Escape') {
+            if (_masterDeskReturnContext) {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelMasterDeskReturn();
+            }
+          }
+        });
         nameInp.addEventListener('input', () => {
           validateLedgerNameInputLive();
           validateMasterLedgerAliasesLive();
@@ -2972,8 +3841,9 @@
         saveBtn.addEventListener('click', () => {
           const name = nameInp ? nameInp.value.trim() : '';
           if (!name) {
-            if (typeof showToast === 'function') showToast('Please enter a ledger name.', 'warning');
-            else alert('Please enter a ledger name.');
+            const targetType = _masterLedgerSaveAsMode === 'customer' ? 'customer' : (_masterLedgerSaveAsMode === 'supplier' ? 'supplier' : 'ledger');
+            if (typeof showToast === 'function') showToast(`Please enter a ${targetType} name.`, 'warning');
+            else alert(`Please enter a ${targetType} name.`);
             if (nameInp) nameInp.focus();
             return;
           }
@@ -3026,6 +3896,254 @@
             }
           }
 
+          const balInp = contentArea.querySelector('#masterLedgerBalance');
+          const balVal = balInp ? balInp.value.trim() : '';
+          const openingBalance = balVal ? parseFloat(balVal) || 0 : 0;
+
+          // Additional Information fields
+          const contactName = contentArea.querySelector('#masterLedgerContactName')?.value?.trim() || '';
+          const address = contentArea.querySelector('#masterLedgerAddress')?.value?.trim() || '';
+          const city = contentArea.querySelector('#masterLedgerCity')?.value?.trim() || '';
+          const pincode = contentArea.querySelector('#masterLedgerPincode')?.value?.trim() || '';
+          const state = contentArea.querySelector('#masterLedgerState')?.value?.trim() || '';
+          const country = contentArea.querySelector('#masterLedgerCountry')?.value?.trim() || 'India';
+          const bankName = contentArea.querySelector('#masterLedgerBankName')?.value?.trim() || '';
+          const accountNo = contentArea.querySelector('#masterLedgerAccountNo')?.value?.trim() || '';
+          const ifsc = contentArea.querySelector('#masterLedgerIfsc')?.value?.trim() || '';
+          const branch = contentArea.querySelector('#masterLedgerBranch')?.value?.trim() || '';
+          const gstin = contentArea.querySelector('#masterLedgerGstin')?.value?.trim() || '';
+          const pan = contentArea.querySelector('#masterLedgerPan')?.value?.trim() || '';
+
+          // Bank Account group: Additional Information fields
+          const isBankAcctGroup = isBankAccountGroup(groupVal);
+          const bankAcctInfo = isBankAcctGroup ? {
+            bankName: contentArea.querySelector('#masterLedgerBankAcctBankName')?.value?.trim() || '',
+            accountHolder: contentArea.querySelector('#masterLedgerBankAcctHolder')?.value?.trim() || '',
+            accountNo: contentArea.querySelector('#masterLedgerBankAcctNo')?.value?.trim() || '',
+            ifscCode: contentArea.querySelector('#masterLedgerBankAcctIfsc')?.value?.trim() || '',
+            branch: contentArea.querySelector('#masterLedgerBankAcctBranch')?.value?.trim() || '',
+            qrCode: _masterLedgerBankAcctQrData ? _masterLedgerBankAcctQrData.fileData : '',
+            qrCodeFileName: _masterLedgerBankAcctQrData ? _masterLedgerBankAcctQrData.fileName : ''
+          } : null;
+
+          // Revenue from Operations group: Additional Information fields
+          const isRevenueOpsGroup = isRevenueFromOperationsGroup(groupVal);
+          const sacInfo = isRevenueOpsGroup ? {
+            sacCode: contentArea.querySelector('#masterLedgerSacCode')?.value?.trim() || '',
+            sacDesc: contentArea.querySelector('#masterLedgerSacDesc')?.value?.trim() || '',
+            rate: parseFloat(contentArea.querySelector('#masterLedgerSacRate')?.value) || 0,
+            gstRate: parseFloat(contentArea.querySelector('#masterLedgerSacGstSel')?.value) || 0
+          } : null;
+
+          // ── If Save As "Customer" is selected ──
+          if (_masterLedgerSaveAsMode === 'customer') {
+            const customers = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
+            const newCustomer = {
+              id: 'cust-' + Date.now(),
+              name: name,
+              aliases: aliases,
+              openingBalance: openingBalance,
+              contactName: contactName,
+              address: address,
+              city: city,
+              pincode: pincode,
+              state: state,
+              country: country,
+              bankName: bankName,
+              accountNo: accountNo,
+              ifsc: ifsc,
+              branch: branch,
+              gstin: gstin,
+              pan: pan,
+              createdAt: Date.now()
+            };
+
+            customers.push(newCustomer);
+
+            // Ensure central Trade Receivables ledger exists in CoA and update combined balance
+            if (typeof coaLedgers !== 'undefined' && Array.isArray(coaLedgers)) {
+              let trLedger = coaLedgers.find(l => l.type === 'ledger' && l.sgId === 'sg-tr' && l.name === 'Trade Receivables');
+              if (!trLedger) {
+                trLedger = { id: 104, name: 'Trade Receivables', sgId: 'sg-tr', type: 'ledger', openingBalance: 0 };
+                coaLedgers.push(trLedger);
+              }
+              const totalCustOp = customers.reduce((sum, c) => sum + (parseFloat(c.openingBalance) || 0), 0);
+              trLedger.openingBalance = totalCustOp;
+            }
+
+            if (typeof _coaExpanded !== 'undefined') {
+              _coaExpanded.add('assets');
+              _coaExpanded.add('sg-tr');
+            }
+
+            if (typeof renderChartPanel === 'function') renderChartPanel();
+            if (typeof refreshAllReports === 'function') refreshAllReports();
+            if (typeof triggerAutoBackup === 'function') triggerAutoBackup();
+            if (typeof populateSalesCustomers === 'function') populateSalesCustomers();
+
+            showToast(`Customer "${name}" created successfully (linked to Trade Receivables).`, 'success');
+
+            _masterLedgerAliases = [];
+
+            if (_masterDeskReturnContext) {
+              const ctx = _masterDeskReturnContext;
+              _masterDeskReturnContext = null;
+              _masterLedgerAliases = [];
+
+              if (ctx.returnTab === 'sales_voucher') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'sales_voucher');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'sales_voucher');
+                if (typeof openTab === 'function') openTab('sales_voucher');
+                else if (typeof window.openTab === 'function') window.openTab('sales_voucher');
+                if (typeof window.onPartyCreatedForSales === 'function') {
+                  window.onPartyCreatedForSales(newCustomer, 'customer');
+                }
+                return;
+              }
+
+              if (ctx.returnTab === 'purchase_voucher') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'purchase_voucher');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'purchase_voucher');
+                if (typeof openTab === 'function') openTab('purchase_voucher');
+                else if (typeof window.openTab === 'function') window.openTab('purchase_voucher');
+                if (typeof window.onPartyCreatedForPurchase === 'function') {
+                  window.onPartyCreatedForPurchase(newCustomer, 'customer');
+                }
+                return;
+              }
+
+              if (ctx.returnTab === 'journal') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'journal');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'journal');
+                if (typeof openTab === 'function') openTab('journal');
+                else if (typeof window.openTab === 'function') window.openTab('journal');
+                if (typeof window.onLedgerCreatedForJournal === 'function') {
+                  window.onLedgerCreatedForJournal(newCustomer, ctx.rowId);
+                }
+                return;
+              }
+
+              if (ctx.returnTab === 'cashline') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'cashline');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'cashline');
+                if (typeof openTab === 'function') openTab('cashline');
+                else if (typeof window.openTab === 'function') window.openTab('cashline');
+                if (typeof window.onLedgerCreatedForCashline === 'function') {
+                  window.onLedgerCreatedForCashline(newCustomer, ctx);
+                }
+                return;
+              }
+            }
+
+            updateMasterDeskContent();
+            return;
+          }
+
+          // ── If Save As "Supplier" is selected ──
+          if (_masterLedgerSaveAsMode === 'supplier') {
+            const suppliers = typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [];
+            const newSupplier = {
+              id: 'supp-' + Date.now(),
+              name: name,
+              aliases: aliases,
+              openingBalance: openingBalance,
+              contactName: contactName,
+              address: address,
+              city: city,
+              pincode: pincode,
+              state: state,
+              country: country,
+              bankName: bankName,
+              accountNo: accountNo,
+              ifsc: ifsc,
+              branch: branch,
+              gstin: gstin,
+              pan: pan,
+              createdAt: Date.now()
+            };
+
+            suppliers.push(newSupplier);
+
+            // Ensure central Trade Payables ledger exists in CoA and update combined balance
+            if (typeof coaLedgers !== 'undefined' && Array.isArray(coaLedgers)) {
+              let tpLedger = coaLedgers.find(l => l.type === 'ledger' && l.sgId === 'sg-tp' && l.name === 'Trade Payables');
+              if (!tpLedger) {
+                tpLedger = { id: 201, name: 'Trade Payables', sgId: 'sg-tp', type: 'ledger', openingBalance: 0 };
+                coaLedgers.push(tpLedger);
+              }
+              const totalSuppOp = suppliers.reduce((sum, s) => sum + (parseFloat(s.openingBalance) || 0), 0);
+              tpLedger.openingBalance = totalSuppOp;
+            }
+
+            if (typeof _coaExpanded !== 'undefined') {
+              _coaExpanded.add('equity-liabilities');
+              _coaExpanded.add('sg-tp');
+            }
+
+            if (typeof renderChartPanel === 'function') renderChartPanel();
+            if (typeof refreshAllReports === 'function') refreshAllReports();
+            if (typeof triggerAutoBackup === 'function') triggerAutoBackup();
+            if (typeof populatePurchaseVendors === 'function') populatePurchaseVendors();
+
+            showToast(`Supplier "${name}" created successfully (linked to Trade Payables).`, 'success');
+
+            _masterLedgerAliases = [];
+
+            if (_masterDeskReturnContext) {
+              const ctx = _masterDeskReturnContext;
+              _masterDeskReturnContext = null;
+              _masterLedgerAliases = [];
+
+              if (ctx.returnTab === 'purchase_voucher') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'purchase_voucher');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'purchase_voucher');
+                if (typeof openTab === 'function') openTab('purchase_voucher');
+                else if (typeof window.openTab === 'function') window.openTab('purchase_voucher');
+                if (typeof window.onPartyCreatedForPurchase === 'function') {
+                  window.onPartyCreatedForPurchase(newSupplier, 'supplier');
+                }
+                return;
+              }
+
+              if (ctx.returnTab === 'sales_voucher') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'sales_voucher');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'sales_voucher');
+                if (typeof openTab === 'function') openTab('sales_voucher');
+                else if (typeof window.openTab === 'function') window.openTab('sales_voucher');
+                if (typeof window.onPartyCreatedForSales === 'function') {
+                  window.onPartyCreatedForSales(newSupplier, 'supplier');
+                }
+                return;
+              }
+
+              if (ctx.returnTab === 'journal') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'journal');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'journal');
+                if (typeof openTab === 'function') openTab('journal');
+                else if (typeof window.openTab === 'function') window.openTab('journal');
+                if (typeof window.onLedgerCreatedForJournal === 'function') {
+                  window.onLedgerCreatedForJournal(newSupplier, ctx.rowId);
+                }
+                return;
+              }
+
+              if (ctx.returnTab === 'cashline') {
+                if (typeof closeTab === 'function') closeTab('master_desk', null, 'cashline');
+                else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'cashline');
+                if (typeof openTab === 'function') openTab('cashline');
+                else if (typeof window.openTab === 'function') window.openTab('cashline');
+                if (typeof window.onLedgerCreatedForCashline === 'function') {
+                  window.onLedgerCreatedForCashline(newSupplier, ctx);
+                }
+                return;
+              }
+            }
+
+            updateMasterDeskContent();
+            return;
+          }
+
+          // ── Otherwise: Save As "Ledger" in CoA ──
           const [pType, pId] = groupVal.split(':');
           let sgId = '';
           let glId = null;
@@ -3042,24 +4160,6 @@
               sgId = pId;
             }
           }
-
-          const balInp = contentArea.querySelector('#masterLedgerBalance');
-          const balVal = balInp ? balInp.value.trim() : '';
-          const openingBalance = balVal ? parseFloat(balVal) || 0 : 0;
-
-          // Additional Information fields
-          const contactName = contentArea.querySelector('#masterLedgerContactName')?.value?.trim() || '';
-          const address = contentArea.querySelector('#masterLedgerAddress')?.value?.trim() || '';
-          const city = contentArea.querySelector('#masterLedgerCity')?.value?.trim() || '';
-          const pincode = contentArea.querySelector('#masterLedgerPincode')?.value?.trim() || '';
-          const state = contentArea.querySelector('#masterLedgerState')?.value?.trim() || '';
-          const country = contentArea.querySelector('#masterLedgerCountry')?.value?.trim() || '';
-          const bankName = contentArea.querySelector('#masterLedgerBankName')?.value?.trim() || '';
-          const accountNo = contentArea.querySelector('#masterLedgerAccountNo')?.value?.trim() || '';
-          const ifsc = contentArea.querySelector('#masterLedgerIfsc')?.value?.trim() || '';
-          const branch = contentArea.querySelector('#masterLedgerBranch')?.value?.trim() || '';
-          const gstin = contentArea.querySelector('#masterLedgerGstin')?.value?.trim() || '';
-          const pan = contentArea.querySelector('#masterLedgerPan')?.value?.trim() || '';
 
           const newLedgerId = Date.now() + (typeof _coaLedgerCtr !== 'undefined' ? _coaLedgerCtr++ : 0);
           const newLedger = {
@@ -3082,7 +4182,9 @@
             ifsc: ifsc,
             branch: branch,
             gstin: gstin,
-            pan: pan
+            pan: pan,
+            bankAccountInfo: bankAcctInfo,
+            sacInfo: sacInfo
           };
 
           if (typeof coaLedgers !== 'undefined') {
@@ -3154,6 +4256,17 @@
               else if (typeof window.openTab === 'function') window.openTab('journal');
               if (typeof window.onLedgerCreatedForJournal === 'function') {
                 window.onLedgerCreatedForJournal(newLedger, ctx.rowId);
+              }
+              return;
+            }
+
+            if (ctx.returnTab === 'cashline') {
+              if (typeof closeTab === 'function') closeTab('master_desk', null, 'cashline');
+              else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'cashline');
+              if (typeof openTab === 'function') openTab('cashline');
+              else if (typeof window.openTab === 'function') window.openTab('cashline');
+              if (typeof window.onLedgerCreatedForCashline === 'function') {
+                window.onLedgerCreatedForCashline(newLedger, ctx);
               }
               return;
             }
@@ -3317,25 +4430,9 @@
         });
       }
 
-      // GSTIN / PAN / IFSC Auto Uppercase & Auto-fill
-      const gstinInp = contentArea.querySelector('#masterCustomerGstin');
-      const panInp = contentArea.querySelector('#masterCustomerPan');
+      // GSTIN / PAN live validity check + Update-PAN-from-GSTIN (matches Company Profile & Vault)
+      wireGstinPanValidation(contentArea, 'masterCustomerGstin', 'masterCustomerPan');
       const ifscInp = contentArea.querySelector('#masterCustomerIfsc');
-
-      if (gstinInp) {
-        gstinInp.addEventListener('input', (e) => {
-          const val = e.target.value.toUpperCase();
-          e.target.value = val;
-          if (val.length >= 12 && panInp && !panInp.value) {
-            panInp.value = val.substring(2, 12);
-          }
-        });
-      }
-      if (panInp) {
-        panInp.addEventListener('input', (e) => {
-          e.target.value = e.target.value.toUpperCase();
-        });
-      }
       if (ifscInp) {
         ifscInp.addEventListener('input', (e) => {
           e.target.value = e.target.value.toUpperCase();
@@ -3373,6 +4470,21 @@
       };
 
       if (nameInp) {
+        nameInp.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && (!nameInp.value || nameInp.value.trim() === '')) {
+            if (_masterDeskReturnContext) {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelMasterDeskReturn();
+            }
+          } else if (e.key === 'Escape') {
+            if (_masterDeskReturnContext) {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelMasterDeskReturn();
+            }
+          }
+        });
         nameInp.addEventListener('input', () => {
           validateCustomerNameInputLive();
           validateMasterCustomerAliasesLive();
@@ -3509,6 +4621,22 @@
 
             if (typeof window.onPartyCreatedForSales === 'function') {
               window.onPartyCreatedForSales(newCustomer, 'customer');
+            }
+            return;
+          }
+
+          if (_masterDeskReturnContext && _masterDeskReturnContext.returnTab === 'cashline') {
+            const ctx = _masterDeskReturnContext;
+            _masterDeskReturnContext = null;
+            _masterCustomerAliases = [];
+
+            if (typeof closeTab === 'function') closeTab('master_desk', null, 'cashline');
+            else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'cashline');
+            if (typeof openTab === 'function') openTab('cashline');
+            else if (typeof window.openTab === 'function') window.openTab('cashline');
+
+            if (typeof window.onPartyCreatedForCashline === 'function') {
+              window.onPartyCreatedForCashline(newCustomer, 'customer', ctx);
             }
             return;
           }
@@ -3671,25 +4799,9 @@
         });
       }
 
-      // GSTIN / PAN / IFSC Auto Uppercase & Auto-fill
-      const gstinInp = contentArea.querySelector('#masterSupplierGstin');
-      const panInp = contentArea.querySelector('#masterSupplierPan');
+      // GSTIN / PAN live validity check + Update-PAN-from-GSTIN (matches Company Profile & Vault)
+      wireGstinPanValidation(contentArea, 'masterSupplierGstin', 'masterSupplierPan');
       const ifscInp = contentArea.querySelector('#masterSupplierIfsc');
-
-      if (gstinInp) {
-        gstinInp.addEventListener('input', (e) => {
-          const val = e.target.value.toUpperCase();
-          e.target.value = val;
-          if (val.length >= 12 && panInp && !panInp.value) {
-            panInp.value = val.substring(2, 12);
-          }
-        });
-      }
-      if (panInp) {
-        panInp.addEventListener('input', (e) => {
-          e.target.value = e.target.value.toUpperCase();
-        });
-      }
       if (ifscInp) {
         ifscInp.addEventListener('input', (e) => {
           e.target.value = e.target.value.toUpperCase();
@@ -3727,6 +4839,21 @@
       };
 
       if (nameInp) {
+        nameInp.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && (!nameInp.value || nameInp.value.trim() === '')) {
+            if (_masterDeskReturnContext) {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelMasterDeskReturn();
+            }
+          } else if (e.key === 'Escape') {
+            if (_masterDeskReturnContext) {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelMasterDeskReturn();
+            }
+          }
+        });
         nameInp.addEventListener('input', () => {
           validateSupplierNameInputLive();
           validateMasterSupplierAliasesLive();
@@ -3863,6 +4990,22 @@
 
             if (typeof window.onPartyCreatedForPurchase === 'function') {
               window.onPartyCreatedForPurchase(newSupplier, 'supplier');
+            }
+            return;
+          }
+
+          if (_masterDeskReturnContext && _masterDeskReturnContext.returnTab === 'cashline') {
+            const ctx = _masterDeskReturnContext;
+            _masterDeskReturnContext = null;
+            _masterSupplierAliases = [];
+
+            if (typeof closeTab === 'function') closeTab('master_desk', null, 'cashline');
+            else if (typeof window.closeTab === 'function') window.closeTab('master_desk', null, 'cashline');
+            if (typeof openTab === 'function') openTab('cashline');
+            else if (typeof window.openTab === 'function') window.openTab('cashline');
+
+            if (typeof window.onPartyCreatedForCashline === 'function') {
+              window.onPartyCreatedForCashline(newSupplier, 'supplier', ctx);
             }
             return;
           }
@@ -4113,6 +5256,33 @@
             </button>
           </div>
 
+          <!-- HSN Code & Description (searchable, cross-fill) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+            <div style="min-width: 0;">
+              <label class="coa-modal-label" for="masterStockItemHsnCode" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">HSN Code</label>
+              <div class="kya-searchable-select-wrap" id="masterStockItemHsnCodeWrap" style="position: relative; width: 100%;">
+                <input type="hidden" id="masterStockItemHsnCode" value="">
+                <div class="kya-searchable-select-trigger" id="masterStockItemHsnCodeTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--slate-400);">
+                  <span id="masterStockItemHsnCodeTriggerText" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Search HSN code...</span>
+                  <span style="font-size: 10px; color: var(--slate-400); flex-shrink: 0; margin-left: 6px;">▼</span>
+                </div>
+                <div class="kya-searchable-select-dropdown" id="masterStockItemHsnCodeDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                  <input type="text" id="masterStockItemHsnCodeSearch" placeholder="Search by HSN code..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                  <div id="masterStockItemHsnCodeOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="min-width: 0;">
+              <label class="coa-modal-label" for="masterStockItemHsnDesc" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">HSN Description</label>
+              <div style="position: relative; width: 100%; min-width: 0;">
+                <input type="hidden" id="masterStockItemHsnDesc" value="">
+                <div id="masterStockItemHsnDescTrigger" style="display: flex; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #f8fafc; cursor: default; font-size: 13.5px; font-weight: 500; color: var(--slate-400); overflow: hidden;">
+                  <span id="masterStockItemHsnDescTriggerText" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto;">Auto-filled from HSN Code</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Group & Category -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
             <div>
@@ -4231,6 +5401,7 @@
       initSearchableSelectHelper(contentArea, 'masterStockItemGroupSel', 'Select Stock Group');
       initSearchableSelectHelper(contentArea, 'masterStockItemCategorySel', 'Select Stock Category');
       initSearchableSelectHelper(contentArea, 'masterStockItemWarehouseSel', 'Select Warehouse / Godown');
+      wireHsnCodeDescFields(contentArea, 'masterStockItemHsnCode', 'masterStockItemHsnDesc');
 
       const qtyInp = contentArea.querySelector('#masterStockItemQty');
       const rateInp = contentArea.querySelector('#masterStockItemRate');
@@ -4266,6 +5437,8 @@
           const rate = parseFloat(rateInp?.value) || 0;
           const reorder = parseFloat(contentArea.querySelector('#masterStockItemReorder')?.value) || 0;
           const gst = parseFloat(contentArea.querySelector('#masterStockItemGstSel')?.value) || 18;
+          const hsnCode = contentArea.querySelector('#masterStockItemHsnCode')?.value?.trim() || '';
+          const hsnDesc = contentArea.querySelector('#masterStockItemHsnDesc')?.value?.trim() || '';
 
           const newItem = {
             id: 'item-' + Date.now(),
@@ -4279,6 +5452,8 @@
             rate: rate,
             reorder: reorder,
             gst: gst,
+            hsnCode: hsnCode,
+            hsnDesc: hsnDesc,
             aliases: _masterStockItemAliases.filter(a => a.trim() !== '')
           };
           _masterStockItems.push(newItem);
@@ -5410,6 +6585,62 @@
               <input class="coa-modal-inp" id="masterAlterLedgerBalance" type="number" min="0" step="0.01" value="${balVal}" placeholder="0.00" style="width: 100%; padding: 10px 14px; font-size: 13.5px; border-radius: 8px; border: 1.5px solid var(--slate-200); box-sizing: border-box;">
             </div>
 
+            <!-- Additional Information (Dynamic for Revenue from Operations group) -->
+            <div id="masterAlterLedgerSacWrap" style="display: none; background: #f8fafc; border: 1.5px solid var(--slate-200); border-radius: 10px; padding: 18px; margin-bottom: 24px; transition: all 0.2s ease;">
+              <div style="font-size: 13.5px; font-weight: 700; color: var(--slate-800); margin-bottom: 14px; display: flex; align-items: center; gap: 7px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <span>Additional Information</span>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+                <div style="min-width: 0;">
+                  <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">SAC Code</label>
+                  <div class="kya-searchable-select-wrap" id="masterAlterLedgerSacCodeWrap" style="position: relative; width: 100%;">
+                    <input type="hidden" id="masterAlterLedgerSacCode" value="${escapeHtml(currentLedger.sacInfo?.sacCode || '')}">
+                    <div class="kya-searchable-select-trigger" id="masterAlterLedgerSacCodeTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border: 1.5px solid var(--slate-200); border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; color: ${currentLedger.sacInfo?.sacCode ? 'var(--slate-700)' : 'var(--slate-400)'};">
+                      <span id="masterAlterLedgerSacCodeTriggerText">${escapeHtml(currentLedger.sacInfo?.sacCode || 'Search or select SAC code...')}</span>
+                      <span style="font-size: 10px; color: var(--slate-400);">▼</span>
+                    </div>
+                    <div class="kya-searchable-select-dropdown" id="masterAlterLedgerSacCodeDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                      <input type="text" id="masterAlterLedgerSacCodeSearch" placeholder="Search by SAC code..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                      <div id="masterAlterLedgerSacCodeOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                    </div>
+                  </div>
+                </div>
+                <div style="min-width: 0;">
+                  <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">SAC Description</label>
+                  <div style="position: relative; width: 100%; min-width: 0;">
+                    <input type="hidden" id="masterAlterLedgerSacDesc" value="${escapeHtml(currentLedger.sacInfo?.sacDesc || '')}">
+                    <div id="masterAlterLedgerSacDescTrigger" style="display: flex; align-items: center; padding: 8px 12px; border: 1.5px solid var(--slate-200); border-radius: 7px; background: #fff; cursor: default; font-size: 13px; font-weight: 500; color: ${currentLedger.sacInfo?.sacDesc ? 'var(--slate-700)' : 'var(--slate-400)'}; overflow: hidden;">
+                      <span id="masterAlterLedgerSacDescTriggerText" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto;">${escapeHtml(currentLedger.sacInfo?.sacDesc || 'Auto-filled from SAC Code')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">Rate</label>
+                  <input type="number" min="0" step="0.01" id="masterAlterLedgerSacRate" value="${currentLedger.sacInfo?.rate || ''}" placeholder="0.00" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+                </div>
+                <div>
+                  <label style="font-size: 11.5px; font-weight: 600; color: var(--slate-600); margin-bottom: 4px; display: block;">GST / Tax Rate (%)</label>
+                  <select id="masterAlterLedgerSacGstSel" style="width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 7px; border: 1.5px solid var(--slate-200); box-sizing: border-box; outline: none; background: #fff;">
+                    <option value="0" ${(currentLedger.sacInfo?.gstRate === 0) ? 'selected' : ''}>0% (Nil / Exempt)</option>
+                    <option value="5" ${(currentLedger.sacInfo?.gstRate === 5) ? 'selected' : ''}>5% GST</option>
+                    <option value="12" ${(currentLedger.sacInfo?.gstRate === 12) ? 'selected' : ''}>12% GST</option>
+                    <option value="18" ${(!currentLedger.sacInfo || currentLedger.sacInfo.gstRate === 18) ? 'selected' : ''}>18% GST</option>
+                    <option value="28" ${(currentLedger.sacInfo?.gstRate === 28) ? 'selected' : ''}>28% GST</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div style="display: flex; gap: 12px; align-items: center;">
                 <button class="btn btn-primary" id="masterAlterLedgerSaveBtn" style="height: 38px; padding: 8px 16px; font-size: 13px; font-weight: 600;">Save Changes</button>
@@ -5453,10 +6684,15 @@
 
         const groupSel = contentArea.querySelector('#masterAlterLedgerGroupCombinedSel');
         const addInfoWrap = contentArea.querySelector('#masterAlterLedgerAdditionalInfoWrap');
+        const sacWrap = contentArea.querySelector('#masterAlterLedgerSacWrap');
         const updateAdditionalInfoVisibility = () => {
           if (!groupSel || !addInfoWrap) return;
           const isParty = isTradePartyGroup(groupSel.value);
           addInfoWrap.style.display = isParty ? 'block' : 'none';
+
+          if (sacWrap) {
+            sacWrap.style.display = isRevenueFromOperationsGroup(groupSel.value) ? 'block' : 'none';
+          }
         };
 
         if (groupSel) {
@@ -5464,29 +6700,16 @@
           updateAdditionalInfoVisibility();
         }
 
-        const gstinInp = contentArea.querySelector('#masterAlterLedgerGstin');
-        const panInp = contentArea.querySelector('#masterAlterLedgerPan');
+        wireGstinPanValidation(contentArea, 'masterAlterLedgerGstin', 'masterAlterLedgerPan');
         const ifscInp = contentArea.querySelector('#masterAlterLedgerIfsc');
-
-        if (gstinInp) {
-          gstinInp.addEventListener('input', (e) => {
-            const val = e.target.value.toUpperCase();
-            e.target.value = val;
-            if (val.length >= 12 && panInp && !panInp.value) {
-              panInp.value = val.substring(2, 12);
-            }
-          });
-        }
-        if (panInp) {
-          panInp.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
-          });
-        }
         if (ifscInp) {
           ifscInp.addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
           });
         }
+
+        // Revenue from Operations group: searchable SAC Code -> Description
+        wireSacCodeDescFields(contentArea, 'masterAlterLedgerSacCode', 'masterAlterLedgerSacDesc');
 
         const saveBtn = contentArea.querySelector('#masterAlterLedgerSaveBtn');
         const cancelBtn = contentArea.querySelector('#masterAlterLedgerCancelBtn');
@@ -5604,6 +6827,14 @@
             const gstin = isParty && contentArea.querySelector('#masterAlterLedgerGstin') ? contentArea.querySelector('#masterAlterLedgerGstin').value.trim() : '';
             const pan = isParty && contentArea.querySelector('#masterAlterLedgerPan') ? contentArea.querySelector('#masterAlterLedgerPan').value.trim() : '';
 
+            const isRevenueOpsGroup = isRevenueFromOperationsGroup(groupVal);
+            const sacInfo = isRevenueOpsGroup ? {
+              sacCode: contentArea.querySelector('#masterAlterLedgerSacCode')?.value?.trim() || '',
+              sacDesc: contentArea.querySelector('#masterAlterLedgerSacDesc')?.value?.trim() || '',
+              rate: parseFloat(contentArea.querySelector('#masterAlterLedgerSacRate')?.value) || 0,
+              gstRate: parseFloat(contentArea.querySelector('#masterAlterLedgerSacGstSel')?.value) || 0
+            } : null;
+
             currentLedger.name = name;
             currentLedger.aliases = aliases;
             currentLedger.sgId = parentSgId;
@@ -5623,6 +6854,7 @@
               currentLedger.gstin = gstin;
               currentLedger.pan = pan;
             }
+            currentLedger.sacInfo = sacInfo;
 
             if (typeof renderChartPanel === 'function') renderChartPanel();
             if (typeof refreshAllReports === 'function') refreshAllReports();
@@ -5880,24 +7112,8 @@
           });
         }
 
-        const gstinInp = contentArea.querySelector('#masterAlterCustomerGstin');
-        const panInp = contentArea.querySelector('#masterAlterCustomerPan');
+        wireGstinPanValidation(contentArea, 'masterAlterCustomerGstin', 'masterAlterCustomerPan');
         const ifscInp = contentArea.querySelector('#masterAlterCustomerIfsc');
-
-        if (gstinInp) {
-          gstinInp.addEventListener('input', (e) => {
-            const val = e.target.value.toUpperCase();
-            e.target.value = val;
-            if (val.length >= 12 && panInp && !panInp.value) {
-              panInp.value = val.substring(2, 12);
-            }
-          });
-        }
-        if (panInp) {
-          panInp.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
-          });
-        }
         if (ifscInp) {
           ifscInp.addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
@@ -6284,24 +7500,8 @@
           });
         }
 
-        const gstinInp = contentArea.querySelector('#masterAlterSupplierGstin');
-        const panInp = contentArea.querySelector('#masterAlterSupplierPan');
+        wireGstinPanValidation(contentArea, 'masterAlterSupplierGstin', 'masterAlterSupplierPan');
         const ifscInp = contentArea.querySelector('#masterAlterSupplierIfsc');
-
-        if (gstinInp) {
-          gstinInp.addEventListener('input', (e) => {
-            const val = e.target.value.toUpperCase();
-            e.target.value = val;
-            if (val.length >= 12 && panInp && !panInp.value) {
-              panInp.value = val.substring(2, 12);
-            }
-          });
-        }
-        if (panInp) {
-          panInp.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
-          });
-        }
         if (ifscInp) {
           ifscInp.addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
@@ -6853,6 +8053,33 @@
               </button>
             </div>
 
+            <!-- HSN Code & Description (searchable, cross-fill) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+              <div style="min-width: 0;">
+                <label class="coa-modal-label" for="masterAlterStockItemHsnCode" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">HSN Code</label>
+                <div class="kya-searchable-select-wrap" id="masterAlterStockItemHsnCodeWrap" style="position: relative; width: 100%;">
+                  <input type="hidden" id="masterAlterStockItemHsnCode" value="${escapeHtml(currentItem.hsnCode || '')}">
+                  <div class="kya-searchable-select-trigger" id="masterAlterStockItemHsnCodeTrigger" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 500; color: ${currentItem.hsnCode ? 'var(--slate-700)' : 'var(--slate-400)'};">
+                    <span id="masterAlterStockItemHsnCodeTriggerText" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(currentItem.hsnCode || 'Search HSN code...')}</span>
+                    <span style="font-size: 10px; color: var(--slate-400); flex-shrink: 0; margin-left: 6px;">▼</span>
+                  </div>
+                  <div class="kya-searchable-select-dropdown" id="masterAlterStockItemHsnCodeDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1.5px solid var(--slate-200); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)); z-index: 1000; padding: 8px; max-height: 280px; overflow-y: auto; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <input type="text" id="masterAlterStockItemHsnCodeSearch" placeholder="Search by HSN code..." class="je-input" style="padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1.5px solid var(--slate-200); margin-bottom: 6px; width: 100%; box-sizing: border-box;" />
+                    <div id="masterAlterStockItemHsnCodeOptionsList" style="display: flex; flex-direction: column; gap: 2px;"></div>
+                  </div>
+                </div>
+              </div>
+              <div style="min-width: 0;">
+                <label class="coa-modal-label" for="masterAlterStockItemHsnDesc" style="font-size: 13px; font-weight: 600; color: var(--slate-700); margin-bottom: 6px; display: block;">HSN Description</label>
+                <div style="position: relative; width: 100%; min-width: 0;">
+                  <input type="hidden" id="masterAlterStockItemHsnDesc" value="${escapeHtml(currentItem.hsnDesc || '')}">
+                  <div id="masterAlterStockItemHsnDescTrigger" style="display: flex; align-items: center; padding: 10px 14px; border: 1.5px solid var(--slate-200); border-radius: 8px; background: #f8fafc; cursor: default; font-size: 13.5px; font-weight: 500; color: ${currentItem.hsnDesc ? 'var(--slate-700)' : 'var(--slate-400)'}; overflow: hidden;">
+                    <span id="masterAlterStockItemHsnDescTriggerText" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto;">${escapeHtml(currentItem.hsnDesc || 'Auto-filled from HSN Code')}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Group & Category -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
               <div>
@@ -6989,6 +8216,7 @@
         initSearchableSelectHelper(contentArea, 'masterAlterStockItemGroupSel', 'Select Stock Group');
         initSearchableSelectHelper(contentArea, 'masterAlterStockItemCategorySel', 'Select Stock Category');
         initSearchableSelectHelper(contentArea, 'masterAlterStockItemWarehouseSel', 'Select Warehouse / Godown');
+        wireHsnCodeDescFields(contentArea, 'masterAlterStockItemHsnCode', 'masterAlterStockItemHsnDesc');
 
         const qtyInp = contentArea.querySelector('#masterAlterStockItemQty');
         const rateInp = contentArea.querySelector('#masterAlterStockItemRate');
@@ -7025,6 +8253,8 @@
             const rate = parseFloat(rateInp?.value) || 0;
             const reorder = parseFloat(contentArea.querySelector('#masterAlterStockItemReorder')?.value) || 0;
             const gst = parseFloat(contentArea.querySelector('#masterAlterStockItemGstSel')?.value) || 18;
+            const hsnCode = contentArea.querySelector('#masterAlterStockItemHsnCode')?.value?.trim() || '';
+            const hsnDesc = contentArea.querySelector('#masterAlterStockItemHsnDesc')?.value?.trim() || '';
 
             currentItem.name = name;
             currentItem.sku = sku;
@@ -7036,6 +8266,8 @@
             currentItem.rate = rate;
             currentItem.reorder = reorder;
             currentItem.gst = gst;
+            currentItem.hsnCode = hsnCode;
+            currentItem.hsnDesc = hsnDesc;
             currentItem.aliases = _masterAlterStockItemAliases.filter(a => a.trim() !== '');
 
             persistMasterStockItems();
@@ -7827,8 +9059,9 @@
               <div class="je-card-subtitle-text" style="color: rgba(255, 255, 255, 0.8); font-size: 12px; margin: 2px 0 0 0;">Central master control and enterprise workspace</div>
             </div>
           </div>
-          <!-- 3-dot more options dropdown -->
-          <div class="rpt-more-wrap">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <!-- 3-dot more options dropdown -->
+            <div class="rpt-more-wrap">
             <button class="rpt-more-btn" id="masterDeskMoreBtn" title="More Options" type="button" aria-label="More Options">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="1.5"></circle>
@@ -7874,6 +9107,7 @@
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
 
@@ -8185,6 +9419,13 @@
           groupSel.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }
+      if (options.saveAs === 'customer' || options.saveAs === 'supplier') {
+        const partyBtn = document.getElementById('masterLedgerSaveAsPartyBtn');
+        if (partyBtn) partyBtn.click();
+      } else if (options.saveAs === 'ledger') {
+        const ledgerBtn = document.getElementById('masterLedgerSaveAsLedgerBtn');
+        if (ledgerBtn) ledgerBtn.click();
+      }
     }, 60);
   }
 
@@ -8261,6 +9502,10 @@
       } else if (targetTab === 'journal') {
         if (typeof window.onLedgerCreationCancelledForJournal === 'function') {
           window.onLedgerCreationCancelledForJournal(ctx.rowId, ctx.initialName);
+        }
+      } else if (targetTab === 'cashline') {
+        if (typeof window.onCreationCancelledForCashline === 'function') {
+          window.onCreationCancelledForCashline(ctx);
         }
       }
       return true;

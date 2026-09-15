@@ -2,11 +2,11 @@
     _globalDateFrom = fromVal;
     _globalDateTo   = toVal;
 
-    ['pnlDateFrom', 'trialDateFrom', 'bsDateFrom'].forEach(id => {
+    ['pnlDateFrom', 'trialDateFrom', 'bsDateFrom', 'vdDateFrom'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = fromVal;
     });
-    ['pnlDateTo', 'trialDateTo', 'bsDateTo'].forEach(id => {
+    ['pnlDateTo', 'trialDateTo', 'bsDateTo', 'vdDateTo'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = toVal;
     });
@@ -1226,12 +1226,14 @@
           cancelHidePartyHoverCard();
         });
         _kyaPartyHoverCardEl.addEventListener('mouseleave', () => {
-          // Never auto-close editable card on mouseleave!
-          if (_kyaPartyCardIsEditable) return;
-          scheduleHidePartyHoverCard(350);
+          scheduleHidePartyHoverCard(_kyaPartyCardIsEditable ? 2000 : 350);
         });
         _kyaPartyHoverCardEl.addEventListener('click', (e) => {
+          cancelHidePartyHoverCard();
           e.stopPropagation();
+        });
+        _kyaPartyHoverCardEl.addEventListener('focusin', () => {
+          cancelHidePartyHoverCard();
         });
       }
     }
@@ -1245,11 +1247,7 @@
     }
   }
 
-  function scheduleHidePartyHoverCard(delay = 300) {
-    if (_kyaPartyCardIsEditable) {
-      // Keep editable card stable!
-      return;
-    }
+  function scheduleHidePartyHoverCard(delay = 2000) {
     cancelHidePartyHoverCard();
     _kyaHoverHideTimeout = setTimeout(() => {
       hidePartyHoverCard();
@@ -1862,21 +1860,44 @@
       }
     };
 
-    // Hover on trigger box when party is selected: show editable details stably
+    let triggerHoverTimer = null;
+    const cancelTriggerHoverTimer = () => {
+      if (triggerHoverTimer) {
+        clearTimeout(triggerHoverTimer);
+        triggerHoverTimer = null;
+      }
+    };
+
+    // Hover on trigger box when party is selected: show editable details stably after 1 second hover
     trigger.addEventListener('mouseenter', () => {
+      cancelTriggerHoverTimer();
+      cancelHidePartyHoverCard();
       if (dropdown.style.display === 'flex') return;
       const partyId = realSelect.value;
       if (!partyId) return;
       const party = findPartyById(partyId, partyType);
       if (party) {
-        cancelHidePartyHoverCard();
-        positionAndShowPartyHoverCard(trigger, party, partyType, true, context);
+        if (_kyaPartyHoverCardEl && _kyaPartyHoverCardEl.style.display === 'block' && _kyaPartyCardIsEditable) {
+          return;
+        }
+        triggerHoverTimer = setTimeout(() => {
+          if (dropdown.style.display === 'flex') return;
+          const currentPartyId = realSelect.value;
+          if (!currentPartyId) return;
+          const currentParty = findPartyById(currentPartyId, partyType);
+          if (currentParty) {
+            cancelHidePartyHoverCard();
+            positionAndShowPartyHoverCard(trigger, currentParty, partyType, true, context);
+          }
+        }, 1000);
       }
     });
 
     trigger.addEventListener('mouseleave', () => {
-      if (_kyaPartyCardIsEditable) return;
-      scheduleHidePartyHoverCard(350);
+      cancelTriggerHoverTimer();
+      if (_kyaPartyHoverCardEl && _kyaPartyHoverCardEl.style.display === 'block') {
+        scheduleHidePartyHoverCard(_kyaPartyCardIsEditable ? 2000 : 350);
+      }
     });
 
     const populateList = (filter = '') => {
@@ -1967,18 +1988,10 @@
               </svg>
               <span>Create Ledger</span>
             </button>
-            <button type="button" class="je-drop-create-item party-create-entity-btn" style="width: 100%; justify-content: center; background: #f0fdf4; color: #16a34a; border-color: #bbf7d0;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>Create ${isSales ? 'Customer' : 'Supplier'}</span>
-            </button>
           </div>
         `;
 
         const btnCreateLedger = emptyWrap.querySelector('.party-create-ledger-btn');
-        const btnCreateEntity = emptyWrap.querySelector('.party-create-entity-btn');
 
         if (btnCreateLedger) {
           btnCreateLedger.addEventListener('mousedown', (e) => {
@@ -1998,29 +2011,12 @@
           });
         }
 
-        if (btnCreateEntity) {
-          btnCreateEntity.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropdown.style.display = 'none';
-            hidePartyHoverCard();
-            const q = searchInput.value.trim();
-            if (typeof window.openMasterDeskCreateParty === 'function') {
-              window.openMasterDeskCreateParty({
-                type: isSales ? 'customer' : 'supplier',
-                initialName: q,
-                returnTab: isSales ? 'sales_voucher' : 'purchase_voucher',
-                selectId: selectId
-              });
-            }
-          });
-        }
-
         optionsList.appendChild(emptyWrap);
       }
     };
 
     trigger.addEventListener('click', (e) => {
+      cancelTriggerHoverTimer();
       e.stopPropagation();
       const isOpen = dropdown.style.display === 'flex';
       hidePartyHoverCard();
@@ -2043,6 +2039,7 @@
     });
 
     dropdown.addEventListener('scroll', () => {
+      cancelTriggerHoverTimer();
       hidePartyHoverCard();
     });
 
@@ -2053,6 +2050,7 @@
     });
 
     realSelect.addEventListener('change', () => {
+      cancelTriggerHoverTimer();
       updateTriggerText();
     });
 
@@ -2065,6 +2063,7 @@
         populateList();
       },
       close: () => {
+        cancelTriggerHoverTimer();
         dropdown.style.display = 'none';
         hidePartyHoverCard();
       }

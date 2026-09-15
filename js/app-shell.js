@@ -12,7 +12,7 @@
   if (!window.coaLedgers) window.coaLedgers = [];
   if (!window.KYA_STORE)  window.KYA_STORE  = {
     salesVouchers: [], salesVouchersDrafts: [],
-    salesInvoiceCtr: 1, salesReturnCtr: 1, salesOrderCtr: 1,
+    salesInvoiceCtr: 1, salesReturnCtr: 1,
     purchaseVouchers: [], purchaseVouchersDrafts: [],
     purchaseInvoiceCtr: 1,
     customers: [],
@@ -418,9 +418,10 @@
       if (tooltipEl) tooltipEl.classList.remove('visible');
 
       // Dispatch window resize after transition so active components/tables adjust smoothly
+      // 320ms = sidebar spring duration (310ms) + small buffer
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
-      }, 260);
+      }, 320);
     }
 
     function toggleSidebar() {
@@ -506,7 +507,7 @@
     if (logoBox) {
       logoBox.addEventListener('mouseenter', () => {
         if (sidebar.classList.contains('collapsed')) {
-          showTooltip(logoBox, 'KYA - Keep Your Accounts (Click to expand)');
+          showTooltip(logoBox, isFullScreen() ? 'Exit Full Screen' : 'Enter Full Screen');
         }
       });
       logoBox.addEventListener('mouseleave', hideTooltip);
@@ -528,6 +529,86 @@
 
   // Initialize sidebar collapse handling
   initSidebarToggle();
+
+
+  /* ======================
+     FULLSCREEN TOGGLE (KYA LOGO)
+  ====================== */
+  function isFullScreen() {
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+  }
+
+  function toggleFullScreen() {
+    if (!isFullScreen()) {
+      const docEl = document.documentElement;
+      const rfs = docEl.requestFullscreen ||
+                  docEl.webkitRequestFullscreen ||
+                  docEl.mozRequestFullScreen ||
+                  docEl.msRequestFullscreen;
+      if (rfs) {
+        rfs.call(docEl).catch(err => {
+          console.warn('Fullscreen request failed:', err);
+        });
+      }
+    } else {
+      const efs = document.exitFullscreen ||
+                  document.webkitExitFullscreen ||
+                  document.mozCancelFullScreen ||
+                  document.msExitFullscreen;
+      if (efs) {
+        efs.call(document).catch(err => {
+          console.warn('Exit fullscreen failed:', err);
+        });
+      }
+    }
+  }
+
+  function updateFullscreenUI() {
+    const fsBtn = document.getElementById('kyaFullscreenBtn');
+    if (!fsBtn) return;
+    const inFs = isFullScreen();
+    if (inFs) {
+      fsBtn.classList.add('is-fullscreen');
+      fsBtn.setAttribute('title', 'Exit full screen');
+      fsBtn.setAttribute('aria-label', 'Exit full screen');
+    } else {
+      fsBtn.classList.remove('is-fullscreen');
+      fsBtn.setAttribute('title', 'Enter full screen');
+      fsBtn.setAttribute('aria-label', 'Enter full screen');
+    }
+  }
+
+  function initFullscreenToggle() {
+    const fsBtn = document.getElementById('kyaFullscreenBtn');
+    if (fsBtn) {
+      fsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullScreen();
+      });
+      fsBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFullScreen();
+        }
+      });
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenUI);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
+    document.addEventListener('mozfullscreenchange', updateFullscreenUI);
+    document.addEventListener('MSFullscreenChange', updateFullscreenUI);
+
+    updateFullscreenUI();
+  }
+
+  // Initialize fullscreen button
+  initFullscreenToggle();
 
 
   /* ======================
@@ -682,6 +763,7 @@
     trial:     { tabId: 'trial' },
     onehub:    { tabId: 'onehub' },
     settings:  { tabId: 'settings' },
+    configuration: { tabId: 'settings' },
     sales:     { tabId: 'sales_voucher' },
     sales_voucher: { tabId: 'sales_voucher' },
     purchase:  { tabId: 'purchase_voucher' },
@@ -808,7 +890,80 @@
   window.closeTab = closeTab;
   window.navigateTo = navigateTo;
 
+  window.refreshAllAppViews = function() {
+    // 1. Cashline Views (Books / Cashbook, Banking / Statement, Banking / Reconciliation, Cashflow)
+    if (typeof window.renderActiveSubtab === 'function') {
+      window.renderActiveSubtab();
+    } else if (typeof window.renderCashlinePanel === 'function') {
+      const clPanel = document.getElementById('panel-cashline');
+      if (clPanel && clPanel.style.display !== 'none') {
+        window.renderCashlinePanel();
+      }
+    }
+
+    // 2. Ledger Views (Statements & Lists)
+    if (typeof renderLedgerStatementView === 'function') {
+      renderLedgerStatementView();
+    }
+    if (typeof renderCustomerStatementView === 'function') {
+      renderCustomerStatementView();
+    }
+    if (typeof renderSupplierStatementView === 'function') {
+      renderSupplierStatementView();
+    }
+    if (typeof renderLedgerListView === 'function') {
+      renderLedgerListView();
+    }
+
+    // 3. Voucher Desk Panel
+    if (typeof renderVoucherDeskPanel === 'function') {
+      renderVoucherDeskPanel();
+    }
+
+    // 4. Journal Panels (Posted & Drafted)
+    if (typeof renderPostedPanel === 'function') {
+      renderPostedPanel();
+    }
+    if (typeof renderDraftedPanel === 'function') {
+      renderDraftedPanel();
+    }
+
+    // 5. Sales Panels (Posted & Drafted)
+    if (typeof renderSalesPostedPanel === 'function') {
+      renderSalesPostedPanel();
+    }
+    if (typeof renderSalesDraftedPanel === 'function') {
+      renderSalesDraftedPanel();
+    }
+
+    // 6. OneHub & Budget Views
+    if (typeof renderOhBudgetView === 'function') {
+      renderOhBudgetView();
+    }
+    if (typeof renderOneHubPanel === 'function') {
+      const ohPanel = document.getElementById('panel-onehub');
+      if (ohPanel && ohPanel.style.display !== 'none') {
+        renderOneHubPanel();
+      }
+    }
+
+    // 7. Financial Reports (P&L, Balance Sheet, Trial Balance)
+    if (typeof refreshAllReports === 'function') {
+      refreshAllReports();
+    }
+
+    // 8. Auto Backup
+    if (typeof triggerAutoBackup === 'function') {
+      triggerAutoBackup();
+    }
+  };
+
   function switchToActivePanel() {
+    if (activeTabId !== 'cashline') {
+      const p = document.getElementById('clReconLedgerPopover');
+      if (p) p.remove();
+    }
+
     // Hide all panels
     Object.values(panels).forEach(el => {
       el.style.display = 'none';
@@ -894,7 +1049,102 @@
     }
   }
 
+  /* ======================
+     CEILING TAB SLIDER
+  ====================== */
+  function updateCeilingSliderControls() {
+    const tabsContainer = document.getElementById('topbarTabs');
+    const prevBtn = document.getElementById('ceilingSliderPrev');
+    const nextBtn = document.getElementById('ceilingSliderNext');
+    const sliderWrap = document.getElementById('ceilingSliderWrap');
+    if (!tabsContainer || !prevBtn || !nextBtn) return;
+
+    const scrollLeft = Math.round(tabsContainer.scrollLeft);
+    const scrollWidth = tabsContainer.scrollWidth;
+    const clientWidth = tabsContainer.clientWidth;
+    const hasOverflow = scrollWidth > clientWidth + 3;
+
+    if (hasOverflow) {
+      prevBtn.classList.add('visible');
+      nextBtn.classList.add('visible');
+
+      const canScrollLeft = scrollLeft > 2;
+      const canScrollRight = scrollLeft + clientWidth < scrollWidth - 3;
+
+      prevBtn.disabled = !canScrollLeft;
+      nextBtn.disabled = !canScrollRight;
+
+      if (sliderWrap) {
+        sliderWrap.classList.toggle('can-scroll-left', canScrollLeft);
+        sliderWrap.classList.toggle('can-scroll-right', canScrollRight);
+      }
+    } else {
+      prevBtn.classList.remove('visible');
+      nextBtn.classList.remove('visible');
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      if (sliderWrap) {
+        sliderWrap.classList.remove('can-scroll-left', 'can-scroll-right');
+      }
+    }
+  }
+
+  let _ceilingSliderInitialized = false;
+  function initCeilingSlider() {
+    if (_ceilingSliderInitialized) return;
+    const tabsContainer = document.getElementById('topbarTabs');
+    const prevBtn = document.getElementById('ceilingSliderPrev');
+    const nextBtn = document.getElementById('ceilingSliderNext');
+    if (!tabsContainer || !prevBtn || !nextBtn) return;
+    _ceilingSliderInitialized = true;
+
+    prevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      tabsContainer.scrollBy({ left: -220, behavior: 'smooth' });
+      setTimeout(updateCeilingSliderControls, 320);
+    });
+
+    nextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      tabsContainer.scrollBy({ left: 220, behavior: 'smooth' });
+      setTimeout(updateCeilingSliderControls, 320);
+    });
+
+    tabsContainer.addEventListener('scroll', () => {
+      updateCeilingSliderControls();
+    }, { passive: true });
+
+    // Translate vertical mouse wheel over tabs into smooth horizontal sliding
+    tabsContainer.addEventListener('wheel', (e) => {
+      if (tabsContainer.scrollWidth > tabsContainer.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          e.preventDefault();
+          tabsContainer.scrollLeft += e.deltaY;
+          updateCeilingSliderControls();
+        }
+      }
+    }, { passive: false });
+
+    // Window resize listener
+    window.addEventListener('resize', () => {
+      updateCeilingSliderControls();
+    });
+
+    // Alert icon click handler: opens Reminders/Notifications
+    const alertBtn = document.getElementById('topbarAlertBtn');
+    if (alertBtn) {
+      alertBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo('onehub');
+        if (typeof switchOhTab === 'function') {
+          switchOhTab('reminders');
+        }
+      });
+    }
+  }
+
   function renderTabs() {
+    initCeilingSlider();
     const tabsContainer = document.getElementById('topbarTabs');
     if (!tabsContainer) return;
     
@@ -910,6 +1160,7 @@
 
     if (openTabs.length === 0) {
       tabsContainer.innerHTML = '';
+      updateCeilingSliderControls();
       return;
     }
     
@@ -979,6 +1230,15 @@
         tabEl.classList.remove('dragging');
         renderTabs(); // Redraw tabs to ensure consistent visual state
       });
+    });
+
+    // Auto-scroll active tab into view and refresh slider controls
+    requestAnimationFrame(() => {
+      const activeTabEl = tabsContainer.querySelector('.topbar-tab.active');
+      if (activeTabEl) {
+        activeTabEl.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+      }
+      setTimeout(updateCeilingSliderControls, 100);
     });
   }
 
@@ -1345,8 +1605,9 @@
 
   window.initDashboard = initDashboard;
 
-  // Run dashboard init once on load
+  // Run dashboard and ceiling slider init on load
   initDashboard();
+  initCeilingSlider();
 
   // Re-init dashboard whenever navigating back to it
   window.addEventListener('hashchange', () => {

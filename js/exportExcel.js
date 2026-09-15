@@ -52,7 +52,7 @@
   }
 
   // ════════════════════════════════════════════════════════════════════
-  // 1. PROFIT & LOSS STATEMENT EXCEL EXPORT
+  // 1. PROFIT & LOSS STATEMENT EXCEL EXPORT (Two Sheets: P&L + Notes)
   // ════════════════════════════════════════════════════════════════════
   async function exportPnLToExcel(data) {
     try {
@@ -66,72 +66,189 @@
       workbook.creator = 'KYA Accounting';
       workbook.created = new Date();
 
-      const sheet = workbook.addWorksheet('Profit & Loss', {
+      const isCompare = !!data.isCompare;
+      const compName = (data.companyName || 'KYA Accounting').toUpperCase();
+      const col1Title = data.col1Title || (data.dateTo ? `Current Period (${formatRptDate(data.dateTo)})` : 'Current Period');
+      const col2Title = data.col2Title || (data.compareDateTo ? `Previous Period (${formatRptDate(data.compareDateTo)})` : 'Previous Period');
+
+      // ────────────────────────────────────────────────────────────────
+      // SHEET 1: Statement of Profit & Loss (Schedule III)
+      // ────────────────────────────────────────────────────────────────
+      const sheet1 = workbook.addWorksheet('Profit & Loss', {
         views: [{ state: 'frozen', ySplit: 5, showGridLines: true }]
       });
 
-      const isCompare = !!data.isCompare;
-      const maxCols = isCompare ? 3 : 2;
-      const lastColLetter = isCompare ? 'C' : 'B';
-
       // Column Widths
-      sheet.getColumn(1).width = 48;
-      sheet.getColumn(2).width = 24;
-      if (isCompare) {
-        sheet.getColumn(3).width = 24;
-      }
+      sheet1.getColumn(1).width = 54; // Particulars
+      sheet1.getColumn(2).width = 12; // Note No.
+      sheet1.getColumn(3).width = 24; // Current Period
+      sheet1.getColumn(4).width = 24; // Previous Period
 
       // 1. Company Name
-      const compName = (data.companyName || 'KYA Accounting').toUpperCase();
-      const r1 = sheet.addRow([compName]);
+      const r1 = sheet1.addRow([compName]);
       r1.height = 24;
-      sheet.mergeCells(`A1:${lastColLetter}1`);
-      const cA1 = sheet.getCell('A1');
+      sheet1.mergeCells('A1:D1');
+      const cA1 = sheet1.getCell('A1');
       cA1.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FF1E3A8A' } };
       cA1.alignment = { vertical: 'middle', horizontal: 'left' };
 
       // 2. Title
-      const r2 = sheet.addRow(['PROFIT & LOSS STATEMENT']);
+      const r2 = sheet1.addRow(['STATEMENT OF PROFIT AND LOSS']);
       r2.height = 20;
-      sheet.mergeCells(`A2:${lastColLetter}2`);
-      const cA2 = sheet.getCell('A2');
+      sheet1.mergeCells('A2:D2');
+      const cA2 = sheet1.getCell('A2');
       cA2.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0F172A' } };
       cA2.alignment = { vertical: 'middle', horizontal: 'left' };
 
-      // 3. Date / Period Subtitle
-      let periodText = 'Statement of Income and Expenses';
-      if (data.dateFrom || data.dateTo) {
-        periodText = `Period: ${formatRptDate(data.dateFrom) || 'Beginning'} to ${formatRptDate(data.dateTo) || 'End'}`;
-      }
-      if (isCompare && (data.compareDateFrom || data.compareDateTo)) {
-        periodText += `  |  Compare: ${formatRptDate(data.compareDateFrom) || 'Beginning'} to ${formatRptDate(data.compareDateTo) || 'End'}`;
-      }
-      const r3 = sheet.addRow([periodText]);
+      // 3. Subtitle / Period
+      let pnlSubtitle = `Statement of Profit and Loss for ${col1Title}`;
+      if (col2Title) pnlSubtitle += ` vs ${col2Title}`;
+      const r3 = sheet1.addRow([pnlSubtitle]);
       r3.height = 18;
-      sheet.mergeCells(`A3:${lastColLetter}3`);
-      const cA3 = sheet.getCell('A3');
+      sheet1.mergeCells('A3:D3');
+      const cA3 = sheet1.getCell('A3');
       cA3.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF64748B' } };
       cA3.alignment = { vertical: 'middle', horizontal: 'left' };
 
       // 4. Spacer Row
-      const r4 = sheet.addRow([]);
-      r4.height = 10;
+      const r4 = sheet1.addRow([]);
+      r4.height = 8;
 
-      // 5. Table Column Headers
-      const col1Hdr = data.dateTo ? `Amount (${formatRptDate(data.dateTo)})` : 'Amount (INR)';
-      const col2Hdr = data.compareDateTo ? `Amount (${formatRptDate(data.compareDateTo)})` : 'Compare Amount (INR)';
-      const headerValues = isCompare ? ['Particulars', col1Hdr, col2Hdr] : ['Particulars', col1Hdr];
-      const r5 = sheet.addRow(headerValues);
-      r5.height = 24;
-
-      for (let c = 1; c <= maxCols; c++) {
+      // 5. Table Header Row (Row 5)
+      const r5 = sheet1.addRow(['Particulars', 'Note No.', col1Title, col2Title]);
+      r5.height = 26;
+      for (let c = 1; c <= 4; c++) {
         const cell = r5.getCell(c);
         cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF1E3A8A' }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+        cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: c === 1 ? 'left' : (c === 2 ? 'center' : 'right'),
+          indent: c === 1 ? 1 : 0
         };
+      }
+
+      // Add Schedule III rows
+      const scheduleRows = data.scheduleRows || [];
+      scheduleRows.forEach(sr => {
+        const isHeader = sr.type === 'sec-hdr';
+        const rowVals = isHeader
+          ? [sr.particular, '', '', '']
+          : [sr.particular, sr.noteNo || '', typeof sr.amount1 === 'number' ? sr.amount1 : sr.amount1, typeof sr.amount2 === 'number' ? sr.amount2 : sr.amount2];
+
+        const row = sheet1.addRow(rowVals);
+        row.height = isHeader ? 22 : 20;
+
+        if (isHeader) {
+          sheet1.mergeCells(`A${row.number}:D${row.number}`);
+          const cell = row.getCell(1);
+          cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E3A8A' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+          cell.border = { top: mediumBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          return;
+        }
+
+        const c1 = row.getCell(1);
+        c1.alignment = { vertical: 'middle', horizontal: 'left', indent: sr.type === 'sub' || sr.type === 'eps' ? 2 : 0 };
+
+        const c2 = row.getCell(2);
+        c2.alignment = { vertical: 'middle', horizontal: 'center' };
+        c2.font = { name: 'Calibri', size: 10, bold: !!sr.noteNo, color: { argb: sr.noteNo ? 'FF1D4ED8' : 'FF94A3B8' } };
+
+        const c3 = row.getCell(3);
+        const c4 = row.getCell(4);
+        if (typeof sr.amount1 === 'number') {
+          c3.numFmt = numFormat;
+          c3.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else {
+          c3.alignment = { vertical: 'middle', horizontal: 'right' };
+        }
+
+        if (typeof sr.amount2 === 'number') {
+          c4.numFmt = numFormat;
+          c4.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else {
+          c4.alignment = { vertical: 'middle', horizontal: 'right' };
+        }
+
+        for (let c = 1; c <= 4; c++) {
+          const cell = row.getCell(c);
+          cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+          if (sr.type === 'subtotal-revenue') {
+            cell.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF166534' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
+            cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
+          } else if (sr.type === 'subtotal-expense') {
+            cell.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF991B1B' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF2F2' } };
+            cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
+          } else if (sr.type === 'highlight') {
+            cell.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBEB' } };
+            cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+          } else if (sr.type === 'grandtotal') {
+            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+            cell.border = { top: mediumBorder, bottom: doubleBorder, left: thinBorder, right: thinBorder };
+          } else if (sr.type === 'main') {
+            cell.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+          } else if (sr.type === 'sub') {
+            cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF334155' } };
+          } else if (sr.type === 'eps') {
+            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+          }
+        }
+      });
+
+      // ────────────────────────────────────────────────────────────────
+      // SHEET 2: Notes to Accounts (Detailed Ledgers & Subgroups)
+      // ────────────────────────────────────────────────────────────────
+      const sheet2 = workbook.addWorksheet('Notes to Accounts', {
+        views: [{ state: 'frozen', ySplit: 5, showGridLines: true }]
+      });
+
+      sheet2.getColumn(1).width = 58; // Particulars / Account
+      sheet2.getColumn(2).width = 24; // Current Period
+      sheet2.getColumn(3).width = 24; // Previous Period
+
+      // 1. Company Name
+      const n1 = sheet2.addRow([compName]);
+      n1.height = 24;
+      sheet2.mergeCells('A1:C1');
+      const cnA1 = sheet2.getCell('A1');
+      cnA1.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FF1E3A8A' } };
+      cnA1.alignment = { vertical: 'middle', horizontal: 'left' };
+
+      // 2. Title
+      const n2 = sheet2.addRow(['NOTES FORMING PART OF THE FINANCIAL STATEMENTS']);
+      n2.height = 20;
+      sheet2.mergeCells('A2:C2');
+      const cnA2 = sheet2.getCell('A2');
+      cnA2.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0F172A' } };
+      cnA2.alignment = { vertical: 'middle', horizontal: 'left' };
+
+      // 3. Subtitle
+      const n3 = sheet2.addRow([`Notes to the Statement of Profit and Loss for the period ended ${data.dateTo || ''}`]);
+      n3.height = 18;
+      sheet2.mergeCells('A3:C3');
+      const cnA3 = sheet2.getCell('A3');
+      cnA3.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF64748B' } };
+      cnA3.alignment = { vertical: 'middle', horizontal: 'left' };
+
+      // 4. Spacer Row
+      const n4 = sheet2.addRow([]);
+      n4.height = 8;
+
+      // 5. Table Header Row (Row 5)
+      const n5 = sheet2.addRow(['Particulars / Account Name', col1Title, col2Title]);
+      n5.height = 26;
+      for (let c = 1; c <= 3; c++) {
+        const cell = n5.getCell(c);
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
         cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
         cell.alignment = {
           vertical: 'middle',
@@ -140,116 +257,109 @@
         };
       }
 
-      function appendRow(particulars, val1, val2, type = 'item') {
-        const rowVals = isCompare ? [particulars, val1, val2] : [particulars, val1];
-        const row = sheet.addRow(rowVals);
-        row.height = 20;
+      // Add Notes to Accounts
+      const notesData = data.notesData || [];
+      notesData.forEach(note => {
+        // Note Header Banner
+        const nrHeader = sheet2.addRow([`Note ${note.noteNo}: ${note.title}`, '', '']);
+        nrHeader.height = 24;
+        sheet2.mergeCells(`A${nrHeader.number}:C${nrHeader.number}`);
+        const cnHdr = nrHeader.getCell(1);
+        cnHdr.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E3A8A' } };
+        cnHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+        cnHdr.border = { top: mediumBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+        cnHdr.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
-        const c1 = row.getCell(1);
-        c1.alignment = { vertical: 'middle', horizontal: 'left' };
+        // Note Items
+        (note.items || []).forEach(item => {
+          const codeStr = item.code ? ` (${item.code})` : '';
+          if (item.isGroup) {
+            // Group Ledger Row
+            const gRow = sheet2.addRow([`  📁 ${item.name}${codeStr}`, item.amount1, item.amount2]);
+            gRow.height = 20;
+            gRow.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
+            gRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            gRow.getCell(2).numFmt = numFormat;
+            gRow.getCell(3).numFmt = numFormat;
+            for (let c = 1; c <= 3; c++) {
+              gRow.getCell(c).border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+            }
 
-        if (typeof val1 === 'number') {
-          const c2 = row.getCell(2);
-          c2.numFmt = numFormat;
-          c2.alignment = { vertical: 'middle', horizontal: 'right' };
-        }
-        if (isCompare && typeof val2 === 'number') {
-          const c3 = row.getCell(3);
-          c3.numFmt = numFormat;
-          c3.alignment = { vertical: 'middle', horizontal: 'right' };
-        }
+            // Children Ledgers
+            (item.children || []).forEach(child => {
+              const cCodeStr = child.code ? ` (${child.code})` : '';
+              const chRow = sheet2.addRow([`      ${child.name}${cCodeStr}`, child.amount1, child.amount2]);
+              chRow.height = 19;
+              chRow.getCell(1).font = { name: 'Calibri', size: 9.5, color: { argb: 'FF475569' } };
+              chRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 2 };
+              chRow.getCell(2).numFmt = numFormat;
+              chRow.getCell(3).numFmt = numFormat;
+              for (let c = 1; c <= 3; c++) {
+                chRow.getCell(c).border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+              }
+            });
+          } else {
+            // Direct Ledger or EPS Row
+            let val1 = item.amount1;
+            let val2 = item.amount2;
+            if (item.isNominalVal) {
+              val1 = typeof item.amount1 === 'number' ? item.amount1 : 0.00;
+              val2 = typeof item.amount2 === 'number' ? item.amount2 : 0.00;
+            }
+            const dRow = sheet2.addRow([`  ${item.name}${codeStr}`, val1, val2]);
+            dRow.height = item.isHighlight ? 21 : 19;
+            const fontColor = item.isHighlight ? 'FF0F172A' : 'FF334155';
+            dRow.getCell(1).font = { name: 'Calibri', size: 10, bold: !!item.isHighlight, color: { argb: fontColor } };
+            dRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
-        for (let c = 1; c <= maxCols; c++) {
-          const cell = row.getCell(c);
-          cell.border = {
-            top: thinBorder,
-            bottom: thinBorder,
-            left: thinBorder,
-            right: thinBorder
-          };
+            if (item.isCount) {
+              dRow.getCell(2).numFmt = '#,##0';
+              dRow.getCell(3).numFmt = '#,##0';
+            } else if (typeof val1 === 'number' || typeof val2 === 'number') {
+              if (typeof val1 === 'number') dRow.getCell(2).numFmt = numFormat;
+              if (typeof val2 === 'number') dRow.getCell(3).numFmt = numFormat;
+            }
 
-          if (type === 'section-hdr') {
-            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E3A8A' } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-            cell.border = { top: mediumBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
-          } else if (type === 'subgroup') {
-            cell.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
-          } else if (type === 'group-ledger') {
-            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFB45309' } };
-          } else if (type === 'child-ledger' || type === 'ledger') {
-            cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF475569' } };
-          } else if (type === 'subtotal-revenue') {
-            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF166534' } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
-            cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
-          } else if (type === 'subtotal-expense') {
-            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF991B1B' } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF2F2' } };
-            cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
-          } else if (type === 'subtotal-pbt') {
-            cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0F172A' } };
+            if (item.isHighlight) {
+              dRow.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+              dRow.getCell(3).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+            }
+
+            for (let c = 1; c <= 3; c++) {
+              const cell = dRow.getCell(c);
+              cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+              if (item.isHighlight) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+              }
+            }
+          }
+        });
+
+        // Note Total Row (Skip for EPS note)
+        if (!note.isEps) {
+          const totRow = sheet2.addRow([`Total ${note.title} (Note ${note.noteNo})`, note.total1, note.total2]);
+          totRow.height = 22;
+          totRow.getCell(1).font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+          totRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          totRow.getCell(2).numFmt = numFormat;
+          totRow.getCell(2).font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+          totRow.getCell(3).numFmt = numFormat;
+          totRow.getCell(3).font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+          for (let c = 1; c <= 3; c++) {
+            const cell = totRow.getCell(c);
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-            cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
-          } else if (type === 'grandtotal-pat') {
-            cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
-            cell.border = { top: mediumBorder, bottom: doubleBorder, left: thinBorder, right: thinBorder };
+            cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
           }
         }
-      }
 
-      function appendBlankRow() {
-        const emptyVals = isCompare ? ['', '', ''] : ['', ''];
-        const r = sheet.addRow(emptyVals);
-        r.height = 8;
-      }
-
-      // 1. REVENUE
-      appendRow('I. REVENUE & INCOME', '', '', 'section-hdr');
-      (data.incomeData || []).forEach(sg => {
-        appendRow(sg.name, sg.amount1, sg.amount2, 'subgroup');
-        (sg.items || []).forEach(item => {
-          if (item.isGroup) {
-            appendRow(`    📁 ${item.name}`, item.amount1, item.amount2, 'group-ledger');
-            (item.children || []).forEach(child => {
-              appendRow(`        ${child.name}`, child.amount1, child.amount2, 'child-ledger');
-            });
-          } else {
-            appendRow(`    ${item.name}`, item.amount1, item.amount2, 'ledger');
-          }
-        });
+        // Blank spacer row between notes
+        const spRow = sheet2.addRow([]);
+        spRow.height = 10;
       });
-      appendRow('Total Revenue (I)', data.totalRevenue1, data.totalRevenue2, 'subtotal-revenue');
 
-      appendBlankRow();
-
-      // 2. EXPENSES
-      appendRow('II. EXPENSES', '', '', 'section-hdr');
-      (data.expenseData || []).forEach(sg => {
-        appendRow(sg.name, sg.amount1, sg.amount2, 'subgroup');
-        (sg.items || []).forEach(item => {
-          if (item.isGroup) {
-            appendRow(`    📁 ${item.name}`, item.amount1, item.amount2, 'group-ledger');
-            (item.children || []).forEach(child => {
-              appendRow(`        ${child.name}`, child.amount1, child.amount2, 'child-ledger');
-            });
-          } else {
-            appendRow(`    ${item.name}`, item.amount1, item.amount2, 'ledger');
-          }
-        });
-      });
-      appendRow('Total Expenses (II)', data.totalExpenses1, data.totalExpenses2, 'subtotal-expense');
-
-      appendBlankRow();
-
-      // 3. PROFITABILITY
-      appendRow('III. PROFITABILITY', '', '', 'section-hdr');
-      appendRow('Profit Before Tax (PBT) (I - II)', data.pbt1, data.pbt2, 'subtotal-pbt');
-      if (data.taxBal1 !== 0 || (isCompare && data.taxBal2 !== 0)) {
-        appendRow('Less: Tax Expense', data.taxBal1, data.taxBal2, 'ledger');
-      }
-      appendRow('PROFIT AFTER TAX (PAT)', data.pat1, data.pat2, 'grandtotal-pat');
-
+      // ────────────────────────────────────────────────────────────────
+      // Download Workbook
+      // ────────────────────────────────────────────────────────────────
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -257,7 +367,7 @@
 
       const sDate = data.dateFrom || 'Start';
       const eDate = data.dateTo || 'End';
-      const fileName = `PnL_${sDate}_${eDate}.xlsx`;
+      const fileName = `Profit_and_Loss_Schedule_III_${sDate}_${eDate}.xlsx`;
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -491,7 +601,7 @@
       });
 
       const optCols = data.optionalCols || {};
-      const headers = ['#', 'Particulars'];
+      const headers = ['Sl No', 'Particulars'];
       if (optCols.gl) headers.push('Group Ledger');
       if (optCols.sg) headers.push('Sub Group');
       if (optCols.mg) headers.push('Main Group');
@@ -501,7 +611,7 @@
       const maxCols = headers.length;
       const lastColLetter = String.fromCharCode(64 + maxCols);
 
-      sheet.getColumn(1).width = 8;
+      sheet.getColumn(1).width = 10;
       sheet.getColumn(2).width = 40;
       let currCol = 3;
       if (optCols.gl) { sheet.getColumn(currCol++).width = 24; }
@@ -1527,7 +1637,7 @@
 
       const activeCo = (typeof getActiveCompany === 'function' ? getActiveCompany() : null) || {};
       const compName = (activeCo.name || 'KYA Accounting').toUpperCase();
-      const title = inv.isReturn ? 'CREDIT NOTE / SALES REVERSAL' : (inv.isOrder ? 'SALES PRE INVOICE' : 'TAX INVOICE');
+      const title = inv.isReturn ? 'CREDIT NOTE / SALES REVERSAL' : 'TAX INVOICE';
 
       // Row 1: Company Name
       const r1 = sheet.addRow([compName]);
@@ -1696,6 +1806,508 @@
   }
 
   /**
+   * Export Quotation / Estimate to Excel (.xlsx)
+   */
+  async function exportQuotationToExcel(quote) {
+    try {
+      await ensureExcelJSLoaded();
+      if (!global.ExcelJS) throw new Error('ExcelJS library could not be loaded.');
+
+      const workbook = new global.ExcelJS.Workbook();
+      workbook.creator = 'KYA Accounting';
+      workbook.created = new Date();
+
+      const sheet = workbook.addWorksheet('Quotation', {
+        views: [{ state: 'frozen', ySplit: 6, showGridLines: true }]
+      });
+
+      const maxCols = 8;
+      const lastColLetter = 'H';
+
+      sheet.getColumn(1).width = 6;  // #
+      sheet.getColumn(2).width = 34; // Description
+      sheet.getColumn(3).width = 14; // HSN/SAC
+      sheet.getColumn(4).width = 12; // Qty
+      sheet.getColumn(5).width = 16; // Rate
+      sheet.getColumn(6).width = 14; // Discount
+      sheet.getColumn(7).width = 12; // Tax %
+      sheet.getColumn(8).width = 18; // Amount
+
+      const activeCo = (typeof getActiveCompany === 'function' ? getActiveCompany() : null) || {};
+      const compName = (activeCo.name || 'KYA Accounting').toUpperCase();
+
+      // Row 1: Company Name
+      const r1 = sheet.addRow([compName]);
+      r1.height = 24;
+      sheet.mergeCells(`A1:${lastColLetter}1`);
+      const cA1 = sheet.getCell('A1');
+      cA1.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FF1D4ED8' } };
+      cA1.alignment = { vertical: 'middle', horizontal: 'left' };
+
+      // Row 2: Title & Quote #
+      const r2 = sheet.addRow(['OFFICIAL QUOTATION / PRICE ESTIMATE', '', '', '', '', '', `Quote #: ${quote.quoteNo || '—'}`]);
+      r2.height = 20;
+      sheet.mergeCells('A2:E2');
+      sheet.mergeCells(`F2:${lastColLetter}2`);
+      r2.getCell(1).font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0F172A' } };
+      r2.getCell(6).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF2563EB' } };
+      r2.getCell(6).alignment = { vertical: 'middle', horizontal: 'right' };
+
+      // Row 3: Customer & Date
+      const customer = (typeof findPartyById === 'function' ? findPartyById(quote.customerId, 'Customer') : null) || (typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => l.id == quote.customerId) : null) || { name: quote.customerName || 'Customer' };
+      const partyName = customer.name || quote.customerName || 'Customer';
+      const r3 = sheet.addRow([`Quotation For: ${partyName}`, '', '', '', `Quotation Date: ${formatRptDate(quote.date) || '—'}`]);
+      r3.height = 18;
+      sheet.mergeCells('A3:D3');
+      sheet.mergeCells(`E3:${lastColLetter}3`);
+      r3.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
+      r3.getCell(5).font = { name: 'Calibri', size: 10, color: { argb: 'FF64748B' } };
+
+      // Row 4: Supply & Valid Until
+      const r4 = sheet.addRow([`Supply: ${quote.supplyType || 'Intra-State'}`, '', '', '', `Valid Until: ${formatRptDate(quote.expiryDate || quote.date) || '—'}`]);
+      r4.height = 18;
+      sheet.mergeCells('A4:D4');
+      sheet.mergeCells(`E4:${lastColLetter}4`);
+      r4.getCell(1).font = { name: 'Calibri', size: 10, color: { argb: 'FF64748B' } };
+      r4.getCell(5).font = { name: 'Calibri', size: 10, color: { argb: 'FF64748B' } };
+
+      // Row 5: Spacer
+      const r5 = sheet.addRow([]);
+      r5.height = 8;
+
+      // Row 6: Column Headers
+      const r6 = sheet.addRow(['#', 'Description', 'HSN/SAC', 'Qty', 'Rate (INR)', 'Discount', 'Tax %', 'Amount (INR)']);
+      r6.height = 24;
+      for (let c = 1; c <= maxCols; c++) {
+        const cell = r6.getCell(c);
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+        cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: (c === 1 ? 'center' : (c === 2 || c === 3 ? 'left' : 'right')),
+          indent: c === 2 ? 1 : 0
+        };
+      }
+
+      // Data Rows
+      (quote.rows || []).forEach((r, idx) => {
+        const desc = r.item || 'Item';
+        const hsn = r.hsn || '—';
+        const qty = parseFloat(r.qty) || 1;
+        const rate = parseFloat(r.rate) || 0;
+        const base = qty * rate;
+        const disc = parseFloat(r.discount) || 0;
+        const discAmt = r.discountType === 'pct' ? (base * (disc / 100)) : disc;
+        const itemTotal = base - discAmt;
+        const taxRate = parseFloat(r.tax) || 0;
+        const taxAmt = itemTotal * (taxRate / 100);
+        const finalAmt = itemTotal + taxAmt;
+        const discStr = disc > 0 ? (r.discountType === 'pct' ? `${disc}%` : discAmt) : '';
+        const qtyDisplay = r.unit ? `${qty} ${r.unit}` : qty;
+
+        const row = sheet.addRow([
+          idx + 1,
+          desc,
+          hsn,
+          qtyDisplay,
+          rate,
+          discStr,
+          taxRate ? `${taxRate}%` : '0%',
+          finalAmt
+        ]);
+        row.height = 20;
+
+        for (let c = 1; c <= maxCols; c++) {
+          const cell = row.getCell(c);
+          cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF334155' } };
+          cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+          if (c === 5 || c === 8) {
+            cell.numFmt = numFormat;
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (c === 4 || c === 6 || c === 7) {
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (c === 1) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else {
+            cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          }
+        }
+      });
+
+      // Sub Total & Taxes
+      const addSummaryRow = (label, val, isBold = false, isFinal = false) => {
+        const row = sheet.addRow(['', '', '', '', '', '', label, val]);
+        row.height = isFinal ? 22 : 20;
+        sheet.mergeCells(`A${row.number}:F${row.number}`);
+        for (let c = 1; c <= maxCols; c++) {
+          const cell = row.getCell(c);
+          cell.font = { name: 'Calibri', size: isFinal ? 11 : 10, bold: isBold, color: isFinal ? { argb: 'FF166534' } : { argb: 'FF334155' } };
+          if (isFinal) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
+            cell.border = { top: mediumBorder, bottom: doubleBorder, left: thinBorder, right: thinBorder };
+          } else {
+            cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+          }
+          if (c === 8) {
+            if (typeof cell.value === 'number') cell.numFmt = numFormat;
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (c === 7) {
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          }
+        }
+      };
+
+      addSummaryRow('Sub Total', quote.subTotal || 0, true);
+      if (quote.tdsTcsMode && quote.tdsTcsMode !== 'None') {
+        addSummaryRow(`${quote.tdsTcsMode} (${quote.tdsTcsRate}%)`, quote.tdsTcsAmount);
+      }
+      if (quote.adjustments) addSummaryRow('Round off / Adjustments', quote.adjustments);
+      addSummaryRow('TOTAL AMOUNT', quote.total || 0, true, true);
+
+      // Notes
+      if (quote.notes) {
+        const rNarrSpacer = sheet.addRow([]);
+        rNarrSpacer.height = 8;
+        const rNarr = sheet.addRow([`Terms & Notes: ${quote.notes}`]);
+        rNarr.height = 20;
+        sheet.mergeCells(`A${rNarr.number}:${lastColLetter}${rNarr.number}`);
+        const cNarr = rNarr.getCell(1);
+        cNarr.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+        cNarr.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const qNum = (quote.quoteNo || 'Quotation').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `Quotation_${qNum}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      return true;
+    } catch (err) {
+      console.error('Failed to export Quotation to Excel:', err);
+      exportQuotationToCsvFallback(quote);
+      return false;
+    }
+  }
+
+  /**
+   * CSV fallback for Quotation export
+   */
+  function exportQuotationToCsvFallback(quote) {
+    try {
+      const rows = [
+        ['Quotation #', quote.quoteNo || ''],
+        ['Date', quote.date || ''],
+        ['Valid Until', quote.expiryDate || ''],
+        ['Customer', quote.customerName || ''],
+        ['Supply Type', quote.supplyType || ''],
+        [],
+        ['#', 'Description', 'HSN/SAC', 'Qty', 'Unit', 'Rate', 'Discount', 'Tax %', 'Amount']
+      ];
+      (quote.rows || []).forEach((r, idx) => {
+        const qty = parseFloat(r.qty) || 1;
+        const rate = parseFloat(r.rate) || 0;
+        const base = qty * rate;
+        const disc = parseFloat(r.discount) || 0;
+        const discAmt = r.discountType === 'pct' ? (base * (disc / 100)) : disc;
+        const itemTotal = base - discAmt;
+        const taxRate = parseFloat(r.tax) || 0;
+        const taxAmt = itemTotal * (taxRate / 100);
+        const finalAmt = itemTotal + taxAmt;
+        rows.push([
+          idx + 1,
+          r.item || '',
+          r.hsn || '',
+          qty,
+          r.unit || '',
+          rate,
+          disc,
+          `${taxRate}%`,
+          finalAmt
+        ]);
+      });
+      rows.push([]);
+      rows.push(['', '', '', '', '', '', '', 'Sub Total', quote.subTotal || 0]);
+      if (quote.adjustments) rows.push(['', '', '', '', '', '', '', 'Adjustments', quote.adjustments]);
+      rows.push(['', '', '', '', '', '', '', 'Total', quote.total || 0]);
+
+      const csvContent = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const qNum = (quote.quoteNo || 'Quotation').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `Quotation_${qNum}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      return true;
+    } catch (e) {
+      console.error('Failed CSV fallback for quotation:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Export Proforma Invoice to Excel (.xlsx) using ExcelJS
+   */
+  async function exportProformaToExcel(proforma) {
+    try {
+      await ensureExcelJSLoaded();
+      if (!global.ExcelJS) throw new Error('ExcelJS library could not be loaded.');
+
+      const workbook = new global.ExcelJS.Workbook();
+      workbook.creator = 'KYA Accounting';
+      workbook.created = new Date();
+
+      const sheet = workbook.addWorksheet('Proforma_Invoice', {
+        views: [{ state: 'frozen', ySplit: 6, showGridLines: true }]
+      });
+
+      const maxCols = 8;
+      const lastColLetter = 'H';
+
+      sheet.getColumn(1).width = 6;  // #
+      sheet.getColumn(2).width = 34; // Description
+      sheet.getColumn(3).width = 14; // HSN/SAC
+      sheet.getColumn(4).width = 12; // Qty
+      sheet.getColumn(5).width = 16; // Rate
+      sheet.getColumn(6).width = 14; // Discount
+      sheet.getColumn(7).width = 12; // Tax %
+      sheet.getColumn(8).width = 18; // Amount
+
+      const activeCo = (typeof getActiveCompany === 'function' ? getActiveCompany() : null) || {};
+      const compName = (activeCo.name || 'KYA Accounting').toUpperCase();
+
+      // Row 1: Company Name
+      const r1 = sheet.addRow([compName]);
+      r1.height = 24;
+      sheet.mergeCells(`A1:${lastColLetter}1`);
+      const cA1 = sheet.getCell('A1');
+      cA1.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FF1D4ED8' } };
+      cA1.alignment = { vertical: 'middle', horizontal: 'left' };
+
+      // Row 2: Title & Proforma #
+      const r2 = sheet.addRow(['PROFORMA INVOICE', '', '', '', '', '', `Proforma #: ${proforma.proformaNo || '—'}`]);
+      r2.height = 20;
+      sheet.mergeCells('A2:E2');
+      sheet.mergeCells(`F2:${lastColLetter}2`);
+      r2.getCell(1).font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0F172A' } };
+      r2.getCell(6).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF2563EB' } };
+      r2.getCell(6).alignment = { vertical: 'middle', horizontal: 'right' };
+
+      // Row 3: Customer & Date
+      const customer = (typeof findPartyById === 'function' ? findPartyById(proforma.customerId, 'Customer') : null) ||
+                       (typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => l.id == proforma.customerId) : null) ||
+                       { name: proforma.customerName || 'Customer' };
+      const partyName = customer.name || proforma.customerName || 'Customer';
+      const r3 = sheet.addRow([`Proforma For: ${partyName}`, '', '', '', `Date: ${formatRptDate(proforma.date) || '—'}`]);
+      r3.height = 18;
+      sheet.mergeCells('A3:D3');
+      sheet.mergeCells(`E3:${lastColLetter}3`);
+      r3.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
+      r3.getCell(5).font = { name: 'Calibri', size: 10, color: { argb: 'FF64748B' } };
+
+      // Row 4: Supply & Due Date / Status
+      const dueText = proforma.dueDate ? `Due Date: ${formatRptDate(proforma.dueDate)}` : (proforma.expiryDate ? `Valid Until: ${formatRptDate(proforma.expiryDate)}` : '');
+      const r4 = sheet.addRow([`Supply: ${proforma.supplyType || 'Intra-State'}`, '', '', '', dueText || `Status: ${proforma.status || 'Active'}`]);
+      r4.height = 18;
+      sheet.mergeCells('A4:D4');
+      sheet.mergeCells(`E4:${lastColLetter}4`);
+      r4.getCell(1).font = { name: 'Calibri', size: 10, color: { argb: 'FF64748B' } };
+      r4.getCell(5).font = { name: 'Calibri', size: 10, color: { argb: 'FF64748B' } };
+
+      // Row 5: Spacer
+      const r5 = sheet.addRow([]);
+      r5.height = 8;
+
+      // Row 6: Column Headers
+      const r6 = sheet.addRow(['#', 'Description', 'HSN/SAC', 'Qty', 'Rate (INR)', 'Discount', 'Tax %', 'Amount (INR)']);
+      r6.height = 24;
+      for (let c = 1; c <= maxCols; c++) {
+        const cell = r6.getCell(c);
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+        cell.border = { top: thinBorder, bottom: mediumBorder, left: thinBorder, right: thinBorder };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: (c === 1 ? 'center' : (c === 2 || c === 3 ? 'left' : 'right')),
+          indent: c === 2 ? 1 : 0
+        };
+      }
+
+      // Data Rows
+      (proforma.rows || []).forEach((r, idx) => {
+        const desc = r.item || 'Item';
+        const hsn = r.hsn || '—';
+        const qty = parseFloat(r.qty) || 1;
+        const rate = parseFloat(r.rate) || 0;
+        const base = qty * rate;
+        const disc = parseFloat(r.discount) || 0;
+        const discAmt = r.discountType === 'pct' ? (base * (disc / 100)) : disc;
+        const itemTotal = base - discAmt;
+        const taxRate = parseFloat(r.tax) || 0;
+        const taxAmt = itemTotal * (taxRate / 100);
+        const finalAmt = itemTotal + taxAmt;
+        const discStr = disc > 0 ? (r.discountType === 'pct' ? `${disc}%` : discAmt) : '';
+        const qtyDisplay = r.unit ? `${qty} ${r.unit}` : qty;
+
+        const row = sheet.addRow([
+          idx + 1,
+          desc,
+          hsn,
+          qtyDisplay,
+          rate,
+          discStr,
+          taxRate ? `${taxRate}%` : '0%',
+          finalAmt
+        ]);
+        row.height = 20;
+
+        for (let c = 1; c <= maxCols; c++) {
+          const cell = row.getCell(c);
+          cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF334155' } };
+          cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+          if (c === 5 || c === 8) {
+            cell.numFmt = numFormat;
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (c === 4 || c === 6 || c === 7) {
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (c === 1) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else {
+            cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          }
+        }
+      });
+
+      // Sub Total & Taxes
+      const addSummaryRow = (label, val, isBold = false, isFinal = false) => {
+        const row = sheet.addRow(['', '', '', '', '', '', label, val]);
+        row.height = isFinal ? 22 : 20;
+        sheet.mergeCells(`A${row.number}:F${row.number}`);
+        for (let c = 1; c <= maxCols; c++) {
+          const cell = row.getCell(c);
+          cell.font = { name: 'Calibri', size: isFinal ? 11 : 10, bold: isBold, color: isFinal ? { argb: 'FF166534' } : { argb: 'FF334155' } };
+          if (isFinal) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
+            cell.border = { top: mediumBorder, bottom: doubleBorder, left: thinBorder, right: thinBorder };
+          } else {
+            cell.border = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+          }
+          if (c === 8) {
+            if (typeof cell.value === 'number') cell.numFmt = numFormat;
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (c === 7) {
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          }
+        }
+      };
+
+      addSummaryRow('Sub Total', proforma.subTotal || 0, true);
+      if (proforma.tdsTcsMode && proforma.tdsTcsMode !== 'None') {
+        addSummaryRow(`${proforma.tdsTcsMode} (${proforma.tdsTcsRate}%)`, proforma.tdsTcsAmount);
+      }
+      if (proforma.adjustments) addSummaryRow('Round off / Adjustments', proforma.adjustments);
+      addSummaryRow('TOTAL AMOUNT', proforma.total || 0, true, true);
+
+      // Notes
+      if (proforma.notes) {
+        const rNarrSpacer = sheet.addRow([]);
+        rNarrSpacer.height = 8;
+        const rNarr = sheet.addRow([`Terms & Notes: ${proforma.notes}`]);
+        rNarr.height = 20;
+        sheet.mergeCells(`A${rNarr.number}:${lastColLetter}${rNarr.number}`);
+        const cNarr = rNarr.getCell(1);
+        cNarr.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+        cNarr.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const pNum = (proforma.proformaNo || 'Proforma').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `Proforma_${pNum}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      return true;
+    } catch (err) {
+      console.error('Failed to export Proforma to Excel:', err);
+      exportProformaToCsvFallback(proforma);
+      return false;
+    }
+  }
+
+  /**
+   * CSV fallback for Proforma export
+   */
+  function exportProformaToCsvFallback(proforma) {
+    try {
+      const rows = [
+        ['Proforma #', proforma.proformaNo || ''],
+        ['Date', proforma.date || ''],
+        ['Due Date', proforma.dueDate || proforma.expiryDate || ''],
+        ['Customer', proforma.customerName || ''],
+        ['Supply Type', proforma.supplyType || ''],
+        ['Payment Terms', proforma.paymentStatus || ''],
+        [],
+        ['#', 'Description', 'HSN/SAC', 'Qty', 'Unit', 'Rate', 'Discount', 'Tax %', 'Amount']
+      ];
+      (proforma.rows || []).forEach((r, idx) => {
+        const qty = parseFloat(r.qty) || 1;
+        const rate = parseFloat(r.rate) || 0;
+        const base = qty * rate;
+        const disc = parseFloat(r.discount) || 0;
+        const discAmt = r.discountType === 'pct' ? (base * (disc / 100)) : disc;
+        const itemTotal = base - discAmt;
+        const taxRate = parseFloat(r.tax) || 0;
+        const taxAmt = itemTotal * (taxRate / 100);
+        const finalAmt = itemTotal + taxAmt;
+        rows.push([
+          idx + 1,
+          r.item || '',
+          r.hsn || '',
+          qty,
+          r.unit || '',
+          rate,
+          disc,
+          `${taxRate}%`,
+          finalAmt
+        ]);
+      });
+      rows.push([]);
+      rows.push(['', '', '', '', '', '', '', 'Sub Total', proforma.subTotal || 0]);
+      if (proforma.adjustments) rows.push(['', '', '', '', '', '', '', 'Adjustments', proforma.adjustments]);
+      rows.push(['', '', '', '', '', '', '', 'Total', proforma.total || 0]);
+
+      const csvContent = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const pNum = (proforma.proformaNo || 'Proforma').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `Proforma_${pNum}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      return true;
+    } catch (e) {
+      console.error('Failed CSV fallback for proforma:', e);
+      return false;
+    }
+  }
+
+  /**
    * Export Voucher Desk Register to Excel (.xlsx)
    */
   async function exportVoucherDeskToExcel(data) {
@@ -1714,7 +2326,7 @@
       const maxCols = 7;
       const lastColLetter = 'G';
 
-      sheet.getColumn(1).width = 8;
+      sheet.getColumn(1).width = 10;
       sheet.getColumn(2).width = 14;
       sheet.getColumn(3).width = 20;
       sheet.getColumn(4).width = 20;
@@ -1742,7 +2354,11 @@
 
       // Row 3: Subtitle / Filter Details
       const items = data.items || [];
-      const filterStr = `Filter: Status: ${data.filterStatus || 'All'} • Type: ${data.filterType || 'All'} • Total Vouchers: ${items.length}`;
+      let filterStr = '';
+      if (data.dateFrom || data.dateTo) {
+        filterStr += `Period: ${data.dateFrom || ''} to ${data.dateTo || ''} • `;
+      }
+      filterStr += `Status: ${data.filterStatus || 'All'} • Type: ${data.filterType || 'All'} • Total Vouchers: ${items.length}`;
       const genStr = `Generated on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
       const r3 = sheet.addRow([filterStr, '', '', '', '', '', genStr]);
       r3.height = 18;
@@ -1757,7 +2373,7 @@
       r4.height = 6;
 
       // Row 5: Header Row
-      const r5 = sheet.addRow(['#', 'Date', 'Voucher No.', 'Type', 'Particulars / Narration', 'Amount (INR)', 'Status']);
+      const r5 = sheet.addRow(['Sl No', 'Date', 'Voucher No.', 'Type', 'Particulars', 'Amount (INR)', 'Status']);
       r5.height = 24;
       for (let c = 1; c <= maxCols; c++) {
         const cell = r5.getCell(c);
@@ -1856,8 +2472,13 @@
   global.exportLedgerStatementToExcel = exportStatementToExcel;
   global.exportCustomerStatementToExcel = exportStatementToExcel;
   global.exportSupplierStatementToExcel = exportStatementToExcel;
+  global.exportCashbookToExcel = exportStatementToExcel;
   global.exportVoucherToExcel = exportVoucherToExcel;
   global.exportInvoiceToExcel = exportInvoiceToExcel;
+  global.exportQuotationToExcel = exportQuotationToExcel;
+  global.exportQuotationToCsvFallback = exportQuotationToCsvFallback;
+  global.exportProformaToExcel = exportProformaToExcel;
+  global.exportProformaToCsvFallback = exportProformaToCsvFallback;
   global.exportVoucherDeskToExcel = exportVoucherDeskToExcel;
 
 })(typeof window !== 'undefined' ? window : this);

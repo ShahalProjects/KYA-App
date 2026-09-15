@@ -28,9 +28,65 @@
     const v = parseFloat(cleanStr);
     return isNaN(v) ? 0 : v;
   }
-  function genVoucherNo() {
-    const y = new Date().getFullYear();
-    return `JV-${y}-${String(jvCounter).padStart(3,'0')}`;
+  function getNextJournalVoucherNo(dateStr, autoIncrement = true) {
+    let targetYear = new Date().getFullYear();
+    if (dateStr) {
+      const parsedDate = new Date(dateStr);
+      if (!isNaN(parsedDate.getTime())) {
+        targetYear = parsedDate.getFullYear();
+      }
+    }
+
+    const allEntries = [
+      ...(typeof postedEntries !== 'undefined' && Array.isArray(postedEntries) ? postedEntries : []),
+      ...(typeof draftedEntries !== 'undefined' && Array.isArray(draftedEntries) ? draftedEntries : []),
+      ...((typeof window !== 'undefined' && window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) ? window.KYA_STORE.salesVouchers : [])
+    ];
+
+    const existingVoucherSet = new Set();
+    let maxSeq = 0;
+
+    allEntries.forEach(e => {
+      const vNo = (e && (e.voucherNo || e.invoiceNo)) ? String(e.voucherNo || e.invoiceNo).trim() : '';
+      if (!vNo) return;
+      existingVoucherSet.add(vNo.toUpperCase());
+
+      const m = vNo.match(/JV-(?:(\d{4})-)?(\d+)/i);
+      if (m) {
+        const yr = m[1] ? parseInt(m[1], 10) : targetYear;
+        const num = parseInt(m[2], 10);
+        if (!isNaN(num) && yr === targetYear) {
+          if (num > maxSeq) maxSeq = num;
+        }
+      }
+    });
+
+    let currentCounter = (typeof jvCounter !== 'undefined' && typeof jvCounter === 'number') ? jvCounter : 1;
+    if (typeof window !== 'undefined' && typeof window.jvCounter === 'number' && window.jvCounter > currentCounter) {
+      currentCounter = window.jvCounter;
+    }
+
+    let candidateNum = Math.max(currentCounter, maxSeq + 1);
+    let candidateVoucher = `JV-${targetYear}-${String(candidateNum).padStart(3, '0')}`;
+
+    while (existingVoucherSet.has(candidateVoucher.toUpperCase())) {
+      candidateNum++;
+      candidateVoucher = `JV-${targetYear}-${String(candidateNum).padStart(3, '0')}`;
+    }
+
+    if (autoIncrement) {
+      const nextCounter = candidateNum + 1;
+      if (typeof jvCounter !== 'undefined') jvCounter = nextCounter;
+      if (typeof window !== 'undefined') window.jvCounter = nextCounter;
+      if (typeof triggerAutoBackup === 'function') triggerAutoBackup();
+    }
+
+    return candidateVoucher;
+  }
+  if (typeof window !== 'undefined') window.getNextJournalVoucherNo = getNextJournalVoucherNo;
+
+  function genVoucherNo(dateStr) {
+    return getNextJournalVoucherNo(dateStr || (document.getElementById('jeDate')?.value), false);
   }
 
   // ── Focus helpers ─────────────────────────────────────────────────
@@ -61,10 +117,38 @@
     if (inp) inp.focus();
   }
 
-  // ── Date → Enter → first particulars ─────────────────────────────
-  document.getElementById('jeDate').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); focusFirstParticulars(); }
-  });
+  let _jeLastSelectedDate = '';
+  try {
+    _jeLastSelectedDate = localStorage.getItem('kya_je_last_date') || '';
+  } catch (e) {}
+
+  // ── Date listeners ───────────────────────────────────────────────
+  const jeDateEl = document.getElementById('jeDate');
+  if (jeDateEl) {
+    jeDateEl.addEventListener('change', function() {
+      if (this.value) {
+        _jeLastSelectedDate = this.value;
+        try { localStorage.setItem('kya_je_last_date', this.value); } catch(e) {}
+        if (!window._editingJournalEntry) {
+          const curVn = (document.getElementById('jeVoucherNo')?.value || '').trim();
+          if (!curVn || /^JV-\d{4}-\d+$/i.test(curVn)) {
+            const newVn = genVoucherNo(this.value);
+            document.getElementById('jeVoucherNo').value = newVn;
+            document.getElementById('jeVoucherChipDisplay').textContent = newVn;
+          }
+        }
+      }
+    });
+    jeDateEl.addEventListener('input', function() {
+      if (this.value) {
+        _jeLastSelectedDate = this.value;
+        try { localStorage.setItem('kya_je_last_date', this.value); } catch(e) {}
+      }
+    });
+    jeDateEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); focusFirstParticulars(); }
+    });
+  }
 
   // ── Voucher No → Enter → first particulars ────────────────────────
   document.getElementById('jeVoucherNo').addEventListener('keydown', function(e) {
@@ -108,22 +192,16 @@
   // ── Budget toggle UI updater ──────────────────────────────────────
   function updateJeBudgetToggleUI() {
     const tog = document.getElementById('jeBudgetToggle');
-    const left = document.getElementById('jeBudgetLabelLeft');
-    const right = document.getElementById('jeBudgetLabelRight');
-    if (!tog || !left || !right) return;
-    if (tog.checked) {
-      // Budget active
-      left.style.color  = 'var(--slate-400)';
-      left.style.fontWeight = '600';
-      right.style.color = 'var(--blue-600)';
-      right.style.fontWeight = '700';
-    } else {
-      // Non Budget active
-      left.style.color  = 'var(--slate-800)';
-      left.style.fontWeight = '700';
-      right.style.color = 'var(--slate-400)';
-      right.style.fontWeight = '600';
+    const bg = document.getElementById('jeTxSliderBg');
+    const btnNon = document.getElementById('btnJeTxNonBudget');
+    const btnBud = document.getElementById('btnJeTxBudget');
+    if (!tog) return;
+    const isBudget = !!tog.checked;
+    if (bg) {
+      bg.className = 'je-tx-slider-bg ' + (isBudget ? 'budget-active' : 'non-budget-active');
     }
+    if (btnNon) btnNon.classList.toggle('active', !isBudget);
+    if (btnBud) btnBud.classList.toggle('active', isBudget);
   }
 
   // ── Document Attachment Helpers ────────────────────────────────────
@@ -257,8 +335,10 @@
   function initFormDefaults() {
     const d = new Date();
     const iso = d.toISOString().split('T')[0];
-    document.getElementById('jeDate').value = iso;
-    const vn = genVoucherNo();
+    const targetDate = _jeLastSelectedDate || iso;
+    const dateInput = document.getElementById('jeDate');
+    if (dateInput) dateInput.value = targetDate;
+    const vn = genVoucherNo(targetDate);
     document.getElementById('jeVoucherNo').value = vn;
     document.getElementById('jeVoucherChipDisplay').textContent = vn;
     document.getElementById('jeNarration').value = '';
@@ -276,7 +356,10 @@
     window._editingJournalEntry = null;
   }
 
-  function loadJournalEntry(entry, isDraft) {
+  function loadJournalEntry(entry, isDraft, returnContext) {
+    const existingReconPop = document.getElementById('clReconLedgerPopover');
+    if (existingReconPop) existingReconPop.remove();
+
     openTab('journal');
     
     document.getElementById('jeDate').value = entry.date || '';
@@ -297,7 +380,7 @@
       updateJeBudgetToggleUI();
     }
     
-    jeRows = JSON.parse(JSON.stringify(entry.allRows));
+    jeRows = JSON.parse(JSON.stringify(entry.allRows || []));
     jeCounter = 1;
     jeRows.forEach(row => {
       row.id = jeCounter++;
@@ -308,8 +391,21 @@
     updateJeDocUI(entry.uploadedDoc || null);
     setupJeDocEventListeners();
     
-    window._editingJournalEntry = { id: entry.id, isDraft: isDraft };
+    window._editingJournalEntry = { 
+      id: entry.id, 
+      isDraft: isDraft,
+      returnContext: returnContext || window._pendingJournalReturnContext || null
+    };
+
+    if (jeRows.length > 1 && jeRows[0].lockParticular) {
+      setTimeout(() => {
+        focusParticularsOfRow(jeRows[1].id);
+      }, 100);
+    } else {
+      setTimeout(focusFirstParticulars, 100);
+    }
   }
+  window.loadJournalEntry = loadJournalEntry;
 
   // ── Sync voucher chip with input ──────────────────────────────────
   document.getElementById('jeVoucherNo').addEventListener('input', function() {
@@ -357,15 +453,22 @@
       sel.setAttribute('aria-label', 'Entry type');
       sel.innerHTML = `<option value="By" ${isBy ? 'selected' : ''}>By</option>
                        <option value="To" ${!isBy ? 'selected' : ''}>To</option>`;
-      sel.addEventListener('change', () => {
-        row.type = sel.value;
-        sel.className = 'je-type-select ' + (sel.value === 'By' ? 'type-by' : 'type-to');
-        // Move any existing amount to the correct bucket
-        if (sel.value === 'By') { row.debit = row.credit || row.debit; row.credit = ''; }
-        else                    { row.credit = row.debit || row.credit; row.debit  = ''; }
-        refreshTotals();
-        renderRows();
-      });
+      if (row.lockType) {
+        sel.disabled = true;
+        sel.style.cursor = 'default';
+        sel.style.opacity = '1';
+        sel.title = 'Bank entry type is fixed';
+      } else {
+        sel.addEventListener('change', () => {
+          row.type = sel.value;
+          sel.className = 'je-type-select ' + (sel.value === 'By' ? 'type-by' : 'type-to');
+          // Move any existing amount to the correct bucket
+          if (sel.value === 'By') { row.debit = row.credit || row.debit; row.credit = ''; }
+          else                    { row.credit = row.debit || row.credit; row.debit  = ''; }
+          refreshTotals();
+          renderRows();
+        });
+      }
       tdType.appendChild(sel);
 
       // ── Particulars
@@ -384,84 +487,143 @@
       inpAmt.className   = 'je-amount-input ' + (isBy ? 'amt-debit' : 'amt-credit');
       inpAmt.setAttribute('aria-label', isBy ? 'Debit amount' : 'Credit amount');
 
-      inpAmt.addEventListener('focus', () => {
-        const thisTr = document.querySelector(`[data-row-id="${row.id}"]`);
-        if (thisTr) {
-          const partInp = thisTr.querySelector('.je-particulars-input');
-          if (partInp && partInp.value.trim() === '') {
-            partInp.focus();
-            showToast('Please select a ledger account in Particulars first.', 'warning');
-          }
-        }
-      });
-
-      inpAmt.addEventListener('input', () => {
-        if (isBy) { row.debit  = inpAmt.value; row.credit = ''; }
-        else      { row.credit = inpAmt.value; row.debit  = ''; }
-        refreshTotals();
-      });
-
-      inpAmt.addEventListener('blur', () => {
-        const v = parseAmt(inpAmt.value);
-        if (v) {
-          const fmt = v.toFixed(2);
-          inpAmt.value = fmt;
-          if (isBy) { row.debit = fmt; row.credit = ''; }
-          else      { row.credit = fmt; row.debit  = ''; }
-        } else {
-          inpAmt.value = '';
-          if (isBy) row.debit = ''; else row.credit = '';
-        }
-        refreshTotals();
-      });
-
-      // ── Keyboard shortcuts on Amount field
-      inpAmt.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || (e.key === ' ' && !/[\+\-\*\/\(]\s*$/.test(inpAmt.value))) {
-          e.preventDefault();
-
-          // Commit current amount first
-          const v = parseAmt(inpAmt.value);
-          if (!v || v <= 0) {
-            showToast('Please enter an amount greater than zero.', 'warning');
-            return;
-          }
-
-          const fmt = v.toFixed(2);
-          inpAmt.value = fmt;
-          if (isBy) row.debit = fmt; else row.credit = fmt;
-          refreshTotals();
-
-          // After committing, re-check balance
-          let totalDr = 0, totalCr = 0;
-          jeRows.forEach(r => { totalDr += parseAmt(r.debit); totalCr += parseAmt(r.credit); });
-          const balanced = totalDr > 0 && Math.abs(totalDr - totalCr) < 0.005;
-
-          if (balanced) {
-            // Entry is balanced → jump straight to Narration
-            document.getElementById('jeNarration').focus();
-          } else {
-            // Not balanced → create next row
-            if (e.key === 'Enter') addRow('To');
-            else                   addRow('By');
-          }
-
-        } else if (e.key === 'Tab') {
-          const v = parseAmt(inpAmt.value);
-          if (!v || v <= 0) {
-            e.preventDefault();
-            showToast('Please enter an amount greater than zero.', 'warning');
-          }
-        } else if (e.key === 'Backspace' && inpAmt.value === '') {
-          // Amount is empty → step back to Particulars of the same row
-          e.preventDefault();
+      if (row.lockAmount) {
+        inpAmt.readOnly = true;
+        inpAmt.style.backgroundColor = '#f8fafc';
+        inpAmt.style.color = '#1e293b';
+        inpAmt.style.fontWeight = '700';
+        inpAmt.style.cursor = 'not-allowed';
+        inpAmt.tabIndex = -1;
+        inpAmt.title = 'Bank statement amount is fixed and cannot be edited';
+      } else {
+        inpAmt.addEventListener('focus', () => {
           const thisTr = document.querySelector(`[data-row-id="${row.id}"]`);
           if (thisTr) {
             const partInp = thisTr.querySelector('.je-particulars-input');
-            if (partInp) partInp.focus();
+            if (partInp && partInp.value.trim() === '') {
+              partInp.focus();
+              showToast('Please select a ledger account in Particulars first.', 'warning');
+            }
           }
-        }
-      });
+        });
+
+        inpAmt.addEventListener('input', () => {
+          if (isBy) { row.debit  = inpAmt.value; row.credit = ''; }
+          else      { row.credit = inpAmt.value; row.debit  = ''; }
+          refreshTotals();
+        });
+
+        inpAmt.addEventListener('blur', () => {
+          const v = parseAmt(inpAmt.value);
+          if (v) {
+            const fmt = v.toFixed(2);
+            inpAmt.value = fmt;
+            if (isBy) { row.debit = fmt; row.credit = ''; }
+            else      { row.credit = fmt; row.debit  = ''; }
+          } else {
+            inpAmt.value = '';
+            if (isBy) row.debit = ''; else row.credit = '';
+          }
+          refreshTotals();
+        });
+
+        // ── Keyboard shortcuts on Amount field
+        inpAmt.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || (e.key === ' ' && !/[\+\-\*\/\(]\s*$/.test(inpAmt.value))) {
+            e.preventDefault();
+
+            let v = parseAmt(inpAmt.value);
+
+            // Auto amount (tally amount) only if current row type can actually balance Total Dr and Cr
+            if ((!v || v <= 0) && inpAmt.value.trim() === '') {
+              let otherDr = 0;
+              let otherCr = 0;
+              jeRows.forEach(r => {
+                if (r.id !== row.id) {
+                  otherDr += parseAmt(r.debit);
+                  otherCr += parseAmt(r.credit);
+                }
+              });
+
+              let tallyAmt = 0;
+              if (row.type === 'To' && otherDr > otherCr) {
+                tallyAmt = otherDr - otherCr;
+              } else if (row.type === 'By' && otherCr > otherDr) {
+                tallyAmt = otherCr - otherDr;
+              }
+
+              if (tallyAmt > 0) {
+                v = tallyAmt;
+              }
+            }
+
+            if (!v || v <= 0) {
+              showToast('Please enter an amount greater than zero.', 'warning');
+              return;
+            }
+
+            const fmt = v.toFixed(2);
+            inpAmt.value = fmt;
+            if (row.type === 'By') { row.debit = fmt; row.credit = ''; }
+            else                   { row.credit = fmt; row.debit = ''; }
+
+            refreshTotals();
+
+            // After committing, re-check balance
+            let totalDr = 0, totalCr = 0;
+            jeRows.forEach(r => { totalDr += parseAmt(r.debit); totalCr += parseAmt(r.credit); });
+            const balanced = totalDr > 0 && Math.abs(totalDr - totalCr) < 0.005;
+
+            if (balanced) {
+              // Entry is balanced → jump straight to Narration
+              document.getElementById('jeNarration').focus();
+            } else {
+              // Not balanced → create next row
+              const nextType = totalDr > totalCr ? 'To' : 'By';
+              if (e.key === 'Enter') addRow(nextType);
+              else                   addRow('By');
+            }
+
+          } else if (e.key === 'Tab') {
+            let v = parseAmt(inpAmt.value);
+            if ((!v || v <= 0) && inpAmt.value.trim() === '') {
+              let otherDr = 0, otherCr = 0;
+              jeRows.forEach(r => {
+                if (r.id !== row.id) {
+                  otherDr += parseAmt(r.debit);
+                  otherCr += parseAmt(r.credit);
+                }
+              });
+              let tallyAmt = 0;
+              if (row.type === 'To' && otherDr > otherCr) {
+                tallyAmt = otherDr - otherCr;
+              } else if (row.type === 'By' && otherCr > otherDr) {
+                tallyAmt = otherCr - otherDr;
+              }
+              if (tallyAmt > 0) {
+                v = tallyAmt;
+                const fmt = v.toFixed(2);
+                inpAmt.value = fmt;
+                if (row.type === 'By') { row.debit = fmt; row.credit = ''; }
+                else                   { row.credit = fmt; row.debit = ''; }
+                refreshTotals();
+              }
+            }
+            if (!v || v <= 0) {
+              e.preventDefault();
+              showToast('Please enter an amount greater than zero.', 'warning');
+            }
+          } else if (e.key === 'Backspace' && inpAmt.value === '') {
+            // Amount is empty → step back to Particulars of the same row
+            e.preventDefault();
+            const thisTr = document.querySelector(`[data-row-id="${row.id}"]`);
+            if (thisTr) {
+              const partInp = thisTr.querySelector('.je-particulars-input');
+              if (partInp) partInp.focus();
+            }
+          }
+        });
+      }
 
       tdAmt.appendChild(inpAmt);
 
@@ -475,20 +637,28 @@
           <path d="M5.5 2h4M1.5 4h12M2.5 4l1 9.5a1 1 0 001 .5h6a1 1 0 001-.5l1-9.5M5.5 6.5v5M9.5 6.5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
         </svg>
       `;
-      delBtn.addEventListener('click', () => {
-        if (isFirst) {
-          // First row: clear fields rather than removing the row
-          row.particular = '';
-          row.debit      = '';
-          row.credit     = '';
-          refreshTotals();
-          renderRows();
-          focusParticularsOfRow(row.id);
-        } else {
-          focusPrevRowDebit(row.id);
-          deleteRow(row.id);
-        }
-      });
+      if (row.isBankRow || row.lockDelete) {
+        delBtn.disabled = true;
+        delBtn.style.opacity = '0.2';
+        delBtn.style.cursor = 'not-allowed';
+        delBtn.style.pointerEvents = 'none';
+        delBtn.title = 'Bank statement line cannot be deleted';
+      } else {
+        delBtn.addEventListener('click', () => {
+          if (isFirst) {
+            // First row: clear fields rather than removing the row
+            row.particular = '';
+            row.debit      = '';
+            row.credit     = '';
+            refreshTotals();
+            renderRows();
+            focusParticularsOfRow(row.id);
+          } else {
+            focusPrevRowDebit(row.id);
+            deleteRow(row.id);
+          }
+        });
+      }
       tdDel.appendChild(delBtn);
 
       tr.appendChild(tdSno);
@@ -506,17 +676,21 @@
     el.id = 'je-portal-dropdown';
     document.body.appendChild(el);
 
-    // Group accent colours matching CoA main groups
+    // Group accent colours matching CoA main groups and party types
     const GROUP_COLORS = {
       assets:               '#3b82f6',
       'equity-liabilities': '#8b5cf6',
       income:               '#10b981',
       expense:              '#f59e0b',
+      customers:            '#0284c7',
+      suppliers:            '#d97706',
     };
 
-    function _dotColor(l) {
+    function _dotColor(item) {
+      if (item.category === 'customer') return '#0284c7';
+      if (item.category === 'supplier') return '#d97706';
       const sg = (typeof COA_SYS_SGS !== 'undefined')
-        ? COA_SYS_SGS.find(s => s.id === l.sgId) : null;
+        ? COA_SYS_SGS.find(s => s.id === item.sgId) : null;
       return (sg && GROUP_COLORS[sg.main]) || '#94a3b8';
     }
 
@@ -576,17 +750,77 @@
       _highlightIdx = -1;
       const q = (query || '').toLowerCase().trim();
 
-      const matches = coaLedgers
-        .filter(l => {
-          if (l.type !== 'ledger') return false;
-          const nm = l.name.toLowerCase().includes(q);
-          const ak = l.aliases && l.aliases.some(a => a.toLowerCase().includes(q));
-          return nm || ak;
+      const items = [];
+
+      // 1. Chart of Accounts Ledgers
+      if (typeof coaLedgers !== 'undefined' && Array.isArray(coaLedgers)) {
+        coaLedgers.forEach(l => {
+          if (l.type !== 'ledger') return;
+          const sg = (typeof COA_SYS_SGS !== 'undefined') ? COA_SYS_SGS.find(s => s.id === l.sgId) : null;
+          const grpKey = sg ? sg.main : '__other__';
+          items.push({
+            name: l.name,
+            aliases: l.aliases || [],
+            code: l.code || '',
+            category: 'ledger',
+            groupKey: grpKey,
+            sgId: l.sgId,
+            raw: l
+          });
+        });
+      }
+
+      // 2. Customers
+      const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
+      custs.forEach(c => {
+        items.push({
+          name: c.name,
+          aliases: c.aliases || [],
+          code: c.code || '',
+          category: 'customer',
+          groupKey: 'customers',
+          raw: c
+        });
+      });
+
+      // 3. Suppliers
+      const supps = typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [];
+      supps.forEach(s => {
+        items.push({
+          name: s.name,
+          aliases: s.aliases || [],
+          code: s.code || '',
+          category: 'supplier',
+          groupKey: 'suppliers',
+          raw: s
+        });
+      });
+
+      const GROUP_ORDER = {
+        'assets': 1,
+        'equity-liabilities': 2,
+        'income': 3,
+        'expense': 4,
+        'customers': 5,
+        'suppliers': 6,
+        '__other__': 7
+      };
+
+      const matches = items
+        .filter(item => {
+          const nm = (item.name || '').toLowerCase().includes(q);
+          const ak = item.aliases && item.aliases.some(a => (a || '').toLowerCase().includes(q));
+          const cd = (item.code || '').toLowerCase().includes(q);
+          return nm || ak || cd;
         })
         .sort((a, b) => {
-          const as = a.name.toLowerCase().startsWith(q) ? 0 : 1;
-          const bs = b.name.toLowerCase().startsWith(q) ? 0 : 1;
-          return as - bs || a.name.localeCompare(b.name);
+          const ga = GROUP_ORDER[a.groupKey] || 99;
+          const gb = GROUP_ORDER[b.groupKey] || 99;
+          if (ga !== gb) return ga - gb;
+
+          const as = (a.name || '').toLowerCase().startsWith(q) ? 0 : 1;
+          const bs = (b.name || '').toLowerCase().startsWith(q) ? 0 : 1;
+          return as - bs || (a.name || '').localeCompare(b.name || '');
         });
 
       el.innerHTML = '';
@@ -599,7 +833,7 @@
             <circle cx="14" cy="14" r="9" stroke="currentColor" stroke-width="1.8"/>
             <path d="M21 21l6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
-          <span class="je-drop-empty-txt">No ledger found</span>
+          <span class="je-drop-empty-txt">No account, customer, or supplier found</span>
           <button type="button" class="je-drop-create-item" id="jeDropCreateLedgerBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -627,14 +861,13 @@
       } else {
         const GROUP_LABELS = {
           assets: 'Assets', 'equity-liabilities': 'Equity & Liabilities',
-          income: 'Income', expense: 'Expense'
+          income: 'Income', expense: 'Expense',
+          customers: 'Customers', suppliers: 'Suppliers'
         };
         let lastGroup = null;
 
         matches.forEach(acct => {
-          const sg     = (typeof COA_SYS_SGS !== 'undefined')
-            ? COA_SYS_SGS.find(s => s.id === acct.sgId) : null;
-          const grpKey = sg ? sg.main : '__other__';
+          const grpKey = acct.groupKey || '__other__';
 
           if (grpKey !== lastGroup) {
             lastGroup = grpKey;
@@ -647,9 +880,16 @@
           const item = document.createElement('div');
           item.className = 'je-drop-item';
           const akaStr = acct.aliases && acct.aliases.length > 0 ? ` [A.K.A: ${acct.aliases.join(', ')}]` : '';
+          const badgeHtml = acct.category === 'customer'
+            ? `<span class="je-drop-badge badge-customer">Customer</span>`
+            : (acct.category === 'supplier'
+              ? `<span class="je-drop-badge badge-supplier">Supplier</span>`
+              : '');
+
           item.innerHTML = `
             <span class="je-drop-dot" style="background:${_dotColor(acct)}"></span>
             <span class="je-drop-name">${_hl(acct.name, query)}${akaStr ? `<span style="font-size:11px;color:#94a3b8;margin-left:4px">${_hl(akaStr, query)}</span>` : ''}</span>
+            ${badgeHtml}
             ${acct.code ? `<span class="je-drop-code">${acct.code}</span>` : ''}
           `;
           item.addEventListener('mousedown', e => {
@@ -731,7 +971,11 @@
         const tr = document.querySelector(`[data-row-id="${targetRow.id}"]`);
         if (tr) {
           const inp = tr.querySelector('.je-particulars-input');
-          if (inp) inp.value = newLedger.name;
+          if (inp) {
+            inp.value = newLedger.name;
+            const wrap = inp.closest('.je-particulars-wrap');
+            if (wrap) updateParticularsBalanceBadge(wrap, newLedger.name);
+          }
         }
         focusDebitOfRow(targetRow.id);
       }, 60);
@@ -760,6 +1004,8 @@
             _jePortal.open(inp, inp.value, function(acct) {
               inp.value = acct.name;
               targetRow.particular = acct.name;
+              const wrap = inp.closest('.je-particulars-wrap');
+              if (wrap) updateParticularsBalanceBadge(wrap, acct.name);
               focusDebitOfRow(targetRow.id);
             });
           }
@@ -767,6 +1013,170 @@
       }, 60);
     }
   };
+
+  // ── Calculate net unposted Dr/Cr impact from current form rows ───
+  function getCurrentFormNetImpact(particularName) {
+    if (!particularName || !particularName.trim()) return { dr: 0, cr: 0 };
+    const nameTrimmed = particularName.trim().toLowerCase();
+    let dr = 0;
+    let cr = 0;
+
+    // If editing an existing posted voucher, subtract the original entry's amounts to avoid double-counting
+    let origDr = 0;
+    let origCr = 0;
+    if (window._editingJournalEntry && !window._editingJournalEntry.isDraft && typeof postedEntries !== 'undefined') {
+      const origEntry = postedEntries.find(e => String(e.id) === String(window._editingJournalEntry.id));
+      if (origEntry && Array.isArray(origEntry.allRows)) {
+        origEntry.allRows.forEach(r => {
+          if ((r.particular || '').trim().toLowerCase() === nameTrimmed) {
+            origDr += parseAmt(r.debit);
+            origCr += parseAmt(r.credit);
+          }
+        });
+      }
+    }
+
+    if (Array.isArray(jeRows)) {
+      jeRows.forEach(r => {
+        if ((r.particular || '').trim().toLowerCase() === nameTrimmed) {
+          dr += parseAmt(r.debit);
+          cr += parseAmt(r.credit);
+        }
+      });
+    }
+
+    return {
+      dr: dr - origDr,
+      cr: cr - origCr
+    };
+  }
+
+  // ── Helper to calculate closing balance for an account/party ──────
+  function getAccountClosingBalance(particularName) {
+    if (!particularName || !particularName.trim()) return null;
+    const nameTrimmed = particularName.trim().toLowerCase();
+    const impact = getCurrentFormNetImpact(nameTrimmed);
+
+    // 1. Check Customer
+    const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
+    const cust = custs.find(c => (c.name || '').trim().toLowerCase() === nameTrimmed);
+    if (cust) {
+      if (typeof getCustomerStatementData === 'function') {
+        const data = getCustomerStatementData(cust.id);
+        if (data) {
+          const baseBal = data.closingBalance || 0;
+          const liveBal = baseBal + impact.dr - impact.cr;
+          const balType = liveBal > 0.004 ? 'Dr' : (liveBal < -0.004 ? 'Cr' : '');
+          return {
+            amount: Math.abs(liveBal),
+            type: balType,
+            text: `₹${fmtNum(Math.abs(liveBal))}${balType ? ' ' + balType : ''}`,
+            rawBal: liveBal,
+            category: 'customer'
+          };
+        }
+      }
+    }
+
+    // 2. Check Supplier
+    const supps = typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [];
+    const supp = supps.find(s => (s.name || '').trim().toLowerCase() === nameTrimmed);
+    if (supp) {
+      if (typeof getSupplierStatementData === 'function') {
+        const data = getSupplierStatementData(supp.id);
+        if (data) {
+          const baseBal = data.closingBalance || 0;
+          const liveBal = baseBal + impact.cr - impact.dr;
+          const balType = liveBal > 0.004 ? 'Cr' : (liveBal < -0.004 ? 'Dr' : '');
+          return {
+            amount: Math.abs(liveBal),
+            type: balType,
+            text: `₹${fmtNum(Math.abs(liveBal))}${balType ? ' ' + balType : ''}`,
+            rawBal: liveBal,
+            category: 'supplier'
+          };
+        }
+      }
+    }
+
+    // 3. Check General CoA Ledger
+    if (typeof coaLedgers !== 'undefined' && Array.isArray(coaLedgers)) {
+      const ldg = coaLedgers.find(l => l.type === 'ledger' && (l.name || '').trim().toLowerCase() === nameTrimmed);
+      if (ldg) {
+        if (typeof calculateLedgerBalances === 'function') {
+          const balances = calculateLedgerBalances(ldg);
+          const mainGroup = typeof getLedgerMainGroup === 'function' ? getLedgerMainGroup(ldg) : 'assets';
+          const isDrGroup = (mainGroup === 'assets' || mainGroup === 'expense');
+          const baseBal = balances.closingBalance || 0;
+          
+          let liveBal = 0;
+          if (isDrGroup) {
+            liveBal = baseBal + impact.dr - impact.cr;
+          } else {
+            liveBal = baseBal + impact.cr - impact.dr;
+          }
+
+          let balType = '';
+          if (liveBal > 0.004) {
+            balType = isDrGroup ? 'Dr' : 'Cr';
+          } else if (liveBal < -0.004) {
+            balType = isDrGroup ? 'Cr' : 'Dr';
+          }
+
+          return {
+            amount: Math.abs(liveBal),
+            type: balType,
+            text: `₹${fmtNum(Math.abs(liveBal))}${balType ? ' ' + balType : ''}`,
+            rawBal: liveBal,
+            category: 'ledger'
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function updateParticularsBalanceBadge(wrap, particularName) {
+    if (!wrap) return;
+    const inp = wrap.querySelector('.je-particulars-input');
+    const balBadge = wrap.querySelector('.je-particulars-bal-badge');
+    if (!balBadge || !inp) return;
+
+    const info = getAccountClosingBalance(particularName || (inp ? inp.value : ''));
+    if (info) {
+      balBadge.textContent = info.text;
+      balBadge.style.display = 'inline-flex';
+      balBadge.title = `Closing Balance: ₹${fmtNum(info.amount)}${info.type ? ' ' + info.type : ''}`;
+      
+      if (info.type === 'Dr') {
+        balBadge.className = 'je-particulars-bal-badge bal-dr';
+      } else if (info.type === 'Cr') {
+        balBadge.className = 'je-particulars-bal-badge bal-cr';
+      } else {
+        balBadge.className = 'je-particulars-bal-badge bal-zero';
+      }
+      inp.classList.add('has-bal-badge');
+    } else {
+      balBadge.textContent = '';
+      balBadge.style.display = 'none';
+      inp.classList.remove('has-bal-badge');
+    }
+  }
+
+  function updateAllParticularsBalanceBadges() {
+    const tbody = document.getElementById('jeEntryBody');
+    if (!tbody) return;
+    const wraps = tbody.querySelectorAll('.je-particulars-wrap');
+    wraps.forEach(wrap => {
+      const inp = wrap.querySelector('.je-particulars-input');
+      const tr = wrap.closest('[data-row-id]');
+      const rowId = tr ? Number(tr.dataset.rowId) : null;
+      const row = (rowId !== null) ? jeRows.find(r => r.id === rowId) : null;
+      const partName = (row && row.particular) ? row.particular : (inp ? inp.value : '');
+      updateParticularsBalanceBadge(wrap, partName);
+    });
+  }
 
   // ── Particulars custom dropdown cell ─────────────────────────────
   function buildParticularsCell(row, isFirstRow) {
@@ -776,98 +1186,132 @@
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.className = 'je-particulars-input';
-    inp.placeholder = 'Select or search ledger…';
-    inp.value = row.particular;
-    inp.setAttribute('aria-label', 'Particulars / ledger account');
+    inp.placeholder = 'Select or search ledger, customer, supplier…';
+    inp.value = row.particular || '';
+    inp.setAttribute('aria-label', 'Particulars / ledger account, customer, or supplier');
     inp.setAttribute('autocomplete', 'off');
     inp.setAttribute('spellcheck', 'false');
+
+    const rightAddons = document.createElement('div');
+    rightAddons.className = 'je-particulars-right-addons';
+
+    const balBadge = document.createElement('span');
+    balBadge.className = 'je-particulars-bal-badge';
+    balBadge.style.display = 'none';
 
     const arrow = document.createElement('span');
     arrow.className = 'je-particulars-arrow';
     arrow.innerHTML = `<svg viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-    function _select(acct) {
-      inp.value      = acct.name;
-      row.particular = acct.name;
-      const tr = inp.closest('[data-row-id]');
-      if (tr) focusDebitOfRow(Number(tr.dataset.rowId));
+    rightAddons.appendChild(balBadge);
+    rightAddons.appendChild(arrow);
+
+    if (row.lockParticular) {
+      inp.readOnly = true;
+      inp.style.backgroundColor = '#f8fafc';
+      inp.style.color = '#1e293b';
+      inp.style.fontWeight = '600';
+      inp.style.cursor = 'default';
+      inp.title = 'Bank account is fixed from statement';
+      arrow.style.display = 'none';
+      setTimeout(() => {
+        updateParticularsBalanceBadge(wrap, row.particular);
+      }, 50);
+    } else {
+      function _select(acct) {
+        inp.value      = acct.name;
+        row.particular = acct.name;
+        updateAllParticularsBalanceBadges();
+        const tr = inp.closest('[data-row-id]');
+        if (tr) focusDebitOfRow(Number(tr.dataset.rowId));
+      }
+
+      inp.addEventListener('focus', () => _jePortal.open(inp, inp.value, _select));
+      inp.addEventListener('input', () => {
+        row.particular = inp.value;
+        updateAllParticularsBalanceBadges();
+        _jePortal.open(inp, inp.value, _select);
+      });
+
+      inp.addEventListener('keydown', e => {
+        const open = _jePortal.isOpen();
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (!open) _jePortal.open(inp, inp.value, _select);
+          _jePortal.moveHighlight(1);
+
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          _jePortal.moveHighlight(-1);
+
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (open) {
+            _jePortal.selectHighlighted();
+          } else {
+            if (inp.value.trim() === '') {
+              showToast('Please select a ledger, customer, or supplier in Particulars.', 'warning');
+            } else {
+              const tr = inp.closest('[data-row-id]');
+              if (tr) focusDebitOfRow(Number(tr.dataset.rowId));
+            }
+          }
+
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          _jePortal.close();
+
+        } else if (e.key === 'Tab') {
+          if (inp.value.trim() === '') {
+            e.preventDefault();
+            showToast('Please select a ledger, customer, or supplier in Particulars.', 'warning');
+          } else {
+            _jePortal.close();
+          }
+
+        } else if (e.key === 'Backspace' && !isFirstRow && inp.value === '') {
+          e.preventDefault();
+          _jePortal.close();
+          focusPrevRowDebit(row.id);
+          deleteRow(row.id);
+        }
+      });
+
+      inp.addEventListener('blur', () => {
+        // Give portal mousedown time to fire before validating
+        setTimeout(() => {
+          if (_jePortal.isOpen()) return;
+          if (window._jeOpeningMasterDesk) return;
+          const val = inp.value.trim().toLowerCase();
+          if (val === '') {
+            row.particular = '';
+          } else {
+            const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
+            const supps = typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [];
+            const match = (coaLedgers && coaLedgers.find(l => l.type === 'ledger' && (l.name || '').toLowerCase() === val))
+              || custs.find(c => (c.name || '').toLowerCase() === val)
+              || supps.find(s => (s.name || '').toLowerCase() === val);
+            if (match) {
+              inp.value      = match.name;
+              row.particular = match.name;
+            } else {
+              inp.value      = '';
+              row.particular = '';
+              showToast('Please select a valid ledger, customer, or supplier.', 'error');
+            }
+          }
+          updateAllParticularsBalanceBadges();
+        }, 200);
+      });
     }
 
-    inp.addEventListener('focus', () => _jePortal.open(inp, inp.value, _select));
-    inp.addEventListener('input', () => {
-      row.particular = inp.value;
-      _jePortal.open(inp, inp.value, _select);
-    });
-
-    inp.addEventListener('keydown', e => {
-      const open = _jePortal.isOpen();
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (!open) _jePortal.open(inp, inp.value, _select);
-        _jePortal.moveHighlight(1);
-
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        _jePortal.moveHighlight(-1);
-
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (open) {
-          _jePortal.selectHighlighted();
-        } else {
-          if (inp.value.trim() === '') {
-            showToast('Please select a ledger account in Particulars.', 'warning');
-          } else {
-            const tr = inp.closest('[data-row-id]');
-            if (tr) focusDebitOfRow(Number(tr.dataset.rowId));
-          }
-        }
-
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        _jePortal.close();
-
-      } else if (e.key === 'Tab') {
-        if (inp.value.trim() === '') {
-          e.preventDefault();
-          showToast('Please select a ledger account in Particulars.', 'warning');
-        } else {
-          _jePortal.close();
-        }
-
-      } else if (e.key === 'Backspace' && !isFirstRow && inp.value === '') {
-        e.preventDefault();
-        _jePortal.close();
-        focusPrevRowDebit(row.id);
-        deleteRow(row.id);
-      }
-    });
-
-    inp.addEventListener('blur', () => {
-      // Give portal mousedown time to fire before validating
-      setTimeout(() => {
-        if (_jePortal.isOpen()) return;
-        if (window._jeOpeningMasterDesk) return;
-        const val = inp.value.trim().toLowerCase();
-        if (val === '') {
-          row.particular = '';
-        } else {
-          const match = coaLedgers.find(l => l.type === 'ledger' && l.name.toLowerCase() === val);
-          if (match) {
-            inp.value      = match.name;
-            row.particular = match.name;
-          } else {
-            inp.value      = '';
-            row.particular = '';
-            showToast('Please select a valid ledger from the Chart of Accounts.', 'error');
-          }
-        }
-      }, 200);
-    });
-
     wrap.appendChild(inp);
-    wrap.appendChild(arrow);
+    wrap.appendChild(rightAddons);
+
+    // Initialize balance badge if row already has a particular
+    updateParticularsBalanceBadge(wrap, row.particular);
+
     return wrap;
   }
 
@@ -886,12 +1330,32 @@
     const balanced = Math.abs(totalDr - totalCr) < 0.005;
     chip.className = 'je-balance-indicator ' + (balanced ? 'balanced' : 'unbalanced');
     txt.textContent = balanced ? 'Balanced ✓' : 'Unbalanced';
+
+    updateAllParticularsBalanceBadges();
   }
 
   // ── Add row button ────────────────────────────────────────────────
   document.getElementById('jeAddRow').addEventListener('click', () => addRow('By'));
 
   // ── Budget toggle listener ────────────────────────────────────────
+  document.getElementById('btnJeTxNonBudget')?.addEventListener('click', () => {
+    const tog = document.getElementById('jeBudgetToggle');
+    if (tog) {
+      tog.checked = false;
+      updateJeBudgetToggleUI();
+      tog.dispatchEvent(new Event('change'));
+    }
+  });
+
+  document.getElementById('btnJeTxBudget')?.addEventListener('click', () => {
+    const tog = document.getElementById('jeBudgetToggle');
+    if (tog) {
+      tog.checked = true;
+      updateJeBudgetToggleUI();
+      tog.dispatchEvent(new Event('change'));
+    }
+  });
+
   document.getElementById('jeBudgetToggle')?.addEventListener('change', updateJeBudgetToggleUI);
 
   // ── New Entry button ──────────────────────────────────────────────
@@ -902,9 +1366,38 @@
 
   // ── Clear button ──────────────────────────────────────────────────
   document.getElementById('btnClearJE').addEventListener('click', () => {
-    initFormDefaults();
-    // Focus first particulars after reset
-    setTimeout(focusFirstParticulars, 80);
+    const returnContext = window._editingJournalEntry?.returnContext || window._pendingJournalReturnContext;
+    if (returnContext) {
+      if (returnContext.cashlineNavState && typeof window.setCashlineNavigationState === 'function') {
+        window.setCashlineNavigationState(returnContext.cashlineNavState);
+      } else if (typeof window.setCashlineNavigationState === 'function') {
+        window.setCashlineNavigationState({
+          activeTopTab: returnContext.clActiveTopTab,
+          activeBankingTab: returnContext.clActiveBankingTab,
+          reconBankId: returnContext.clReconBankId,
+          cashbookAccountId: returnContext.clCashbookAccountId,
+          reconSubSection: returnContext.clReconSubSection,
+          reconFilter: returnContext.clReconFilter
+        });
+      }
+      window._editingJournalEntry = null;
+      window._pendingJournalReturnContext = null;
+      initFormDefaults();
+      const returnTabId = returnContext.tabId || 'cashline';
+      if (typeof closeTab === 'function') {
+        closeTab('journal', null, returnTabId);
+      } else if (typeof openTab === 'function') {
+        openTab(returnTabId);
+      }
+      if (returnTabId === 'cashline') {
+        if (typeof renderCashlinePanel === 'function') renderCashlinePanel();
+        else if (typeof window.renderCashlinePanel === 'function') window.renderCashlinePanel();
+      }
+    } else {
+      initFormDefaults();
+      // Focus first particulars after reset
+      setTimeout(focusFirstParticulars, 80);
+    }
   });
 
   // ── Save Draft ────────────────────────────────────────────────────
@@ -920,8 +1413,9 @@
     const firstRow = jeRows[0] || {};
     const amt      = parseAmt(firstRow.debit) || parseAmt(firstRow.credit);
     
-    const isEditDraft = window._editingJournalEntry && window._editingJournalEntry.isDraft;
-    const entryId = isEditDraft ? window._editingJournalEntry.id : Date.now();
+    const editingCtx = window._editingJournalEntry;
+    const isEditDraft = editingCtx && editingCtx.isDraft;
+    const entryId = isEditDraft ? editingCtx.id : Date.now();
     
     const draftData = {
       id:              entryId,
@@ -938,7 +1432,7 @@
     };
     
     if (isEditDraft) {
-      const idx = draftedEntries.findIndex(e => e.id === entryId);
+      const idx = draftedEntries.findIndex(e => String(e.id) === String(entryId));
       if (idx > -1) {
         draftedEntries[idx] = draftData;
       } else {
@@ -952,9 +1446,52 @@
     if (!isEditDraft) {
       jvCounter++;
     }
+
+    if (dateVal) {
+      _jeLastSelectedDate = dateVal;
+      try { localStorage.setItem('kya_je_last_date', dateVal); } catch(e) {}
+    }
+
+    const returnContext = editingCtx?.returnContext || window._pendingJournalReturnContext || null;
     window._editingJournalEntry = null;
+    window._pendingJournalReturnContext = null;
+
     triggerAutoBackup();
-    setTimeout(initFormDefaults, 900);
+    if (typeof window.refreshAllAppViews === 'function') {
+      window.refreshAllAppViews();
+    }
+
+    if (returnContext) {
+      if (returnContext.cashlineNavState && typeof window.setCashlineNavigationState === 'function') {
+        window.setCashlineNavigationState(returnContext.cashlineNavState);
+      } else if (typeof window.setCashlineNavigationState === 'function') {
+        window.setCashlineNavigationState({
+          activeTopTab: returnContext.clActiveTopTab,
+          activeBankingTab: returnContext.clActiveBankingTab,
+          reconBankId: returnContext.clReconBankId,
+          cashbookAccountId: returnContext.clCashbookAccountId,
+          reconSubSection: returnContext.clReconSubSection,
+          reconFilter: returnContext.clReconFilter
+        });
+      }
+
+      initFormDefaults();
+
+      const returnTabId = returnContext.tabId || 'cashline';
+      if (typeof closeTab === 'function') {
+        closeTab('journal', null, returnTabId);
+      } else if (typeof openTab === 'function') {
+        openTab(returnTabId);
+      }
+
+      if (returnTabId === 'cashline') {
+        if (typeof renderCashlinePanel === 'function') renderCashlinePanel();
+        else if (typeof window.renderCashlinePanel === 'function') window.renderCashlinePanel();
+        else if (typeof renderActiveSubtab === 'function') renderActiveSubtab();
+      }
+    } else {
+      setTimeout(initFormDefaults, 900);
+    }
   });
 
   // ── Post Entry ────────────────────────────────────────────────────
@@ -972,7 +1509,34 @@
   const cancelBtn = document.getElementById('btnJeCancel');
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
-      showToast('Cancel is an upcoming feature!', 'info');
+      const returnContext = window._editingJournalEntry?.returnContext || window._pendingJournalReturnContext;
+      if (returnContext) {
+        if (returnContext.cashlineNavState && typeof window.setCashlineNavigationState === 'function') {
+          window.setCashlineNavigationState(returnContext.cashlineNavState);
+        } else if (typeof window.setCashlineNavigationState === 'function') {
+          window.setCashlineNavigationState({
+            activeTopTab: returnContext.clActiveTopTab,
+            activeBankingTab: returnContext.clActiveBankingTab,
+            reconBankId: returnContext.clReconBankId,
+            cashbookAccountId: returnContext.clCashbookAccountId,
+            reconSubSection: returnContext.clReconSubSection,
+            reconFilter: returnContext.clReconFilter
+          });
+        }
+        window._editingJournalEntry = null;
+        window._pendingJournalReturnContext = null;
+        initFormDefaults();
+        const returnTabId = returnContext.tabId || 'cashline';
+        if (typeof closeTab === 'function') closeTab('journal', null, returnTabId);
+        else if (typeof openTab === 'function') openTab(returnTabId);
+        if (returnTabId === 'cashline') {
+          if (typeof renderCashlinePanel === 'function') renderCashlinePanel();
+          else if (typeof window.renderCashlinePanel === 'function') window.renderCashlinePanel();
+        }
+      } else {
+        initFormDefaults();
+        showToast('Journal entry reset.', 'info');
+      }
     });
   }
 
@@ -1116,15 +1680,20 @@
     }
     const hasEmpty = jeRows.some(r => !r.particular.trim());
     if (hasEmpty) {
-      showToast('Please select a ledger account for all rows.', 'error');
+      showToast('Please select an account, customer, or supplier for all rows.', 'error');
       return;
     }
+    const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
+    const supps = typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [];
     const invalidRow = jeRows.find(r => {
       const val = r.particular.trim().toLowerCase();
-      return !coaLedgers.some(l => l.type === 'ledger' && l.name.toLowerCase() === val);
+      const isCoa = coaLedgers.some(l => l.type === 'ledger' && (l.name || '').toLowerCase() === val);
+      const isCust = custs.some(c => (c.name || '').toLowerCase() === val);
+      const isSupp = supps.some(s => (s.name || '').toLowerCase() === val);
+      return !isCoa && !isCust && !isSupp;
     });
     if (invalidRow) {
-      showToast(`Invalid ledger name: "${invalidRow.particular}". Please select a ledger from the Chart of Accounts.`, 'error');
+      showToast(`Invalid account name: "${invalidRow.particular}". Please select a valid ledger, customer, or supplier.`, 'error');
       return;
     }
 
@@ -1150,6 +1719,7 @@
 
   // ── Posted entries store & panel state ───────────────────────────
   let postedEntries       = [];
+  window.postedEntries    = postedEntries;
   let _ptStyleDone        = false;
   let _ptSelected         = new Set();
   let _ptSearch           = '';
@@ -1379,7 +1949,7 @@
                 <td><span class="pt-vbadge">${e.voucherNo}</span>${e.uploadedDoc && e.uploadedDoc.fileData ? `<span title="Attachment: ${typeof ohEsc === 'function' ? ohEsc(e.uploadedDoc.fileName) : e.uploadedDoc.fileName}" style="margin-left: 5px; color: #2563eb; display: inline-flex; vertical-align: middle;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>` : ''}</td>
                 <td>${e.preparedBy}</td>
                 <td style="font-weight:500;color:#1e293b">${e.firstParticular || '—'}</td>
-                <td style="text-align:right"><span class="pt-amt">₹&thinsp;${e.amount}</span></td>
+                <td style="text-align:right"><span class="pt-amt">₹&thinsp;${e.amount || (e.allRows && e.allRows[0] ? (e.allRows[0].debit || e.allRows[0].credit) : '0.00')}</span></td>
                 <td style="text-align:center;white-space:nowrap">
                   <button class="pt-view-btn pt-edit" data-id="${e.id}" title="Edit journal entry" style="margin-right:4px">
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -1449,9 +2019,13 @@
         onConfirm: () => {
           postedEntries = postedEntries.filter(e => !_ptSelected.has(e.id));
           _ptSelected.clear();
-          renderPostedPanel();
-          refreshAllReports();
-          triggerAutoBackup();
+          if (typeof window.refreshAllAppViews === 'function') {
+            window.refreshAllAppViews();
+          } else {
+            renderPostedPanel();
+            refreshAllReports();
+            triggerAutoBackup();
+          }
         }
       });
     });
@@ -1471,10 +2045,17 @@
           okBg: '#dc2626',
           onConfirm: () => {
             postedEntries = postedEntries.filter(e => e.id !== id);
+            if (entry.reconKey && window.KYA_STORE?.reconciliationState) {
+              delete window.KYA_STORE.reconciliationState[entry.reconKey];
+            }
             _ptSelected.delete(id);
-            renderPostedPanel();
-            refreshAllReports();
-            triggerAutoBackup();
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              renderPostedPanel();
+              refreshAllReports();
+              triggerAutoBackup();
+            }
           }
         });
       });
@@ -1565,37 +2146,101 @@
 
   // ── Post one or more draft entries → move to Posted ──────────────
   function postDraftEntries(ids) {
-    const idsSet = new Set(ids);
-    const toPost = draftedEntries.filter(e => idsSet.has(e.id));
+    const idsSet = new Set(ids.map(x => String(x)));
+    const toPost = (typeof draftedEntries !== 'undefined' ? draftedEntries : []).filter(e => idsSet.has(String(e.id)));
+    if (!toPost.length) {
+      // If already moved to postedEntries, silently succeed without showing an error
+      const alreadyPosted = (typeof postedEntries !== 'undefined' ? postedEntries : []).some(e => idsSet.has(String(e.id)));
+      if (alreadyPosted) {
+        return true;
+      }
+      return false;
+    }
 
-    // Validate all rows in all to-be-posted drafts
-    for (const entry of toPost) {
-      const invalidRow = entry.allRows.find(r => {
-        const val = r.particular.trim().toLowerCase();
-        return !val || !coaLedgers.some(l => l.type === 'ledger' && l.name.toLowerCase() === val);
-      });
-      if (invalidRow) {
-        showToast(`Cannot post draft "${entry.voucherNo || '—'}": it references an invalid or deleted ledger: "${invalidRow.particular || 'Empty'}".`, 'error');
-        return;
+    // Filter out completely empty trailing rows from each entry
+    toPost.forEach(entry => {
+      if (Array.isArray(entry.allRows)) {
+        const meaningful = entry.allRows.filter(r => (r.particular || '').trim() || parseAmt(r.debit) || parseAmt(r.credit));
+        if (meaningful.length > 0) {
+          entry.allRows = meaningful;
+        }
+      }
+    });
+
+    // Move matched drafts into postedEntries (preserve newest-first order)
+    toPost.forEach(e => {
+      if (!e.firstParticular && Array.isArray(e.allRows) && e.allRows.length > 0) {
+        e.firstParticular = e.allRows[0].particular || '—';
+      }
+      if (!e.amount && Array.isArray(e.allRows) && e.allRows.length > 0) {
+        const firstRow = e.allRows[0];
+        const amt = parseAmt(firstRow.debit) || parseAmt(firstRow.credit);
+        e.amount = fmtNum(amt);
+      }
+      postedEntries.unshift(e);
+    });
+
+    // Remove from drafts & selection
+    draftedEntries = draftedEntries.filter(e => !idsSet.has(String(e.id)));
+    ids.forEach(id => {
+      if (typeof _dtSelected !== 'undefined') {
+        _dtSelected.delete(Number(id));
+        _dtSelected.delete(String(id));
+      }
+    });
+
+    const n = toPost.length;
+    if (typeof showToast === 'function') {
+      showToast(
+        n === 1
+          ? `Draft "${toPost[0].voucherNo || '—'}" posted successfully!`
+          : `${n} drafts posted successfully!`,
+        'success'
+      );
+    }
+
+    if (typeof window.refreshAllAppViews === 'function') {
+      window.refreshAllAppViews();
+    } else {
+      if (typeof renderDraftedPanel === 'function') renderDraftedPanel();
+      if (typeof renderPostedPanel === 'function') renderPostedPanel();
+      if (typeof renderVoucherDeskPanel === 'function') renderVoucherDeskPanel();
+      if (typeof refreshAllReports === 'function') refreshAllReports();
+    }
+    if (typeof triggerAutoBackup === 'function') triggerAutoBackup();
+    return true;
+  }
+  window.postDraftEntries = postDraftEntries;
+
+  let _postingVoucherLock = false;
+  function postVoucherFromDetails(id) {
+    if (_postingVoucherLock) return;
+    _postingVoucherLock = true;
+    setTimeout(() => { _postingVoucherLock = false; }, 800);
+
+    let entry = (typeof draftedEntries !== 'undefined' ? draftedEntries : []).find(e => String(e.id) === String(id) || e.id == id);
+    if (!entry && typeof window !== 'undefined' && window._currentViewingJournalEntry) {
+      if (String(window._currentViewingJournalEntry.id) === String(id)) {
+        entry = window._currentViewingJournalEntry;
       }
     }
 
-    // Move matched drafts into postedEntries (preserve newest-first order)
-    toPost.forEach(e => postedEntries.unshift(e));
-    // Remove from drafts & selection
-    draftedEntries = draftedEntries.filter(e => !idsSet.has(e.id));
-    ids.forEach(id => _dtSelected.delete(id));
-    const n = toPost.length;
-    showToast(
-      n === 1
-        ? `Draft "${toPost[0].voucherNo || '—'}" posted successfully!`
-        : `${n} drafts posted successfully!`,
-      'success'
-    );
-    renderDraftedPanel();
-    refreshAllReports();
-    triggerAutoBackup();
+    // Close modal instantly
+    document.getElementById('fjOverlay')?.remove();
+    window._currentViewingJournalEntry = null;
+
+    if (!entry) {
+      const alreadyPosted = (typeof postedEntries !== 'undefined' ? postedEntries : []).some(e => String(e.id) === String(id) || e.id == id);
+      if (alreadyPosted) return;
+      if (typeof showToast === 'function') showToast('Draft entry not found.', 'error');
+      return;
+    }
+
+    // Post entry instantly
+    postDraftEntries([entry.id]);
   }
+  window.postVoucherFromDetails = postVoucherFromDetails;
+
 
   function renderDraftedPanel() {
     injectPostedStyles();   // reuse Posted CSS for table, toolbar, buttons
@@ -1858,6 +2503,7 @@
 
   // ── Full Journal View modal ────────────────────────────────────────
   function showFullJournalModal(entry, isDraft) {
+    window._currentViewingJournalEntry = entry;
     document.getElementById('fjOverlay')?.remove();
 
     const rows = entry.allRows || [];
@@ -1873,7 +2519,17 @@
     const statusText = isDraft ? 'Full entry details · Draft' : 'Full entry details · Posted';
     const amtColour  = isDraft ? '#d97706' : '#2563eb';
     const draftBanner = isDraft
-      ? `<div class="fj-draft-banner">✏️ &nbsp;This is a <strong>Draft</strong> entry — it has not been posted yet.</div>`
+      ? `<div class="fj-draft-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>This is a <strong>Draft</strong> entry — it has not been posted yet.</span>
+          </div>
+          <button id="fjBannerPostBtn" type="button" style="background: #16a34a; border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; color: #fff; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; transition: background 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);" onmouseover="this.style.background='#15803d'" onmouseout="this.style.background='#16a34a'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Post Entry</span>
+          </button>
+        </div>`
       : '';
 
     const deptObj = (entry.departmentId && entry.departmentId !== 'all')
@@ -2006,6 +2662,23 @@
     document.body.appendChild(overlay);
     overlay.focus();
 
+    // Wire Post Entry Button (Drafts)
+    const bannerPostBtn = overlay.querySelector('#fjBannerPostBtn');
+    if (bannerPostBtn) {
+      bannerPostBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        bannerPostBtn.disabled = true;
+        bannerPostBtn.style.pointerEvents = 'none';
+        bannerPostBtn.style.opacity = '0.5';
+        if (typeof postVoucherFromDetails === 'function') {
+          postVoucherFromDetails(entry.id);
+        } else if (typeof window.postVoucherFromDetails === 'function') {
+          window.postVoucherFromDetails(entry.id);
+        }
+      });
+    }
+
     // Wire Export Dropdown
     const expBtn = overlay.querySelector('#fjExportBtn');
     const expDropdown = overlay.querySelector('#fjExportDropdown');
@@ -2058,12 +2731,14 @@
     const firstRow = jeRows[0] || {};
     const amt      = parseAmt(firstRow.debit) || parseAmt(firstRow.credit);
     
-    if (window._editingJournalEntry && window._editingJournalEntry.isDraft) {
-      draftedEntries = draftedEntries.filter(e => e.id !== window._editingJournalEntry.id);
+    const editingCtx = window._editingJournalEntry;
+    const isEditDraft = editingCtx && editingCtx.isDraft;
+    if (isEditDraft) {
+      draftedEntries = draftedEntries.filter(e => String(e.id) !== String(editingCtx.id));
     }
     
-    const isEditPosted = window._editingJournalEntry && !window._editingJournalEntry.isDraft;
-    const entryId = isEditPosted ? window._editingJournalEntry.id : Date.now();
+    const isEditPosted = editingCtx && !editingCtx.isDraft;
+    const entryId = isEditPosted ? editingCtx.id : (isEditDraft ? editingCtx.id : Date.now());
     
     const postData = {
       id:             entryId,
@@ -2079,8 +2754,49 @@
       uploadedDoc:    window._jeUploadedDoc || null,
     };
 
+    const returnContext = editingCtx?.returnContext || window._pendingJournalReturnContext || null;
+
+    if (returnContext && returnContext.reconKey) {
+      postData.reconKey = returnContext.reconKey;
+      window.KYA_STORE = window.KYA_STORE || {};
+      window.KYA_STORE.reconciliationState = window.KYA_STORE.reconciliationState || {};
+      window.KYA_STORE.statementConfirmed = window.KYA_STORE.statementConfirmed || {};
+      window.KYA_STORE.statementLedgerMapping = window.KYA_STORE.statementLedgerMapping || {};
+      window.KYA_STORE.statementNarrationMapping = window.KYA_STORE.statementNarrationMapping || {};
+      window.KYA_STORE.statementDeptMapping = window.KYA_STORE.statementDeptMapping || {};
+      window.KYA_STORE.statementTypeMapping = window.KYA_STORE.statementTypeMapping || {};
+      window.KYA_STORE.statementDocMapping = window.KYA_STORE.statementDocMapping || {};
+
+      window.KYA_STORE.reconciliationState[returnContext.reconKey] = postData.date;
+      window.KYA_STORE.statementConfirmed[returnContext.reconKey] = true;
+
+      // Identify contra ledger(s)
+      const bankName = returnContext.bankLedgerName || '';
+      const oppRows = (postData.allRows || []).filter(r => r.particular && r.particular !== bankName);
+      let contraLedgerId = '';
+      if (oppRows.length > 0) {
+        const firstOpp = oppRows[0].particular;
+        const foundLedger = (typeof coaLedgers !== 'undefined' ? coaLedgers : []).find(l => l.name === firstOpp);
+        if (foundLedger) contraLedgerId = foundLedger.id;
+        else contraLedgerId = firstOpp;
+      }
+      if (contraLedgerId) {
+        window.KYA_STORE.statementLedgerMapping[returnContext.reconKey] = contraLedgerId;
+      }
+      if (postData.narration) {
+        window.KYA_STORE.statementNarrationMapping[returnContext.reconKey] = postData.narration;
+      }
+      if (postData.departmentId) {
+        window.KYA_STORE.statementDeptMapping[returnContext.reconKey] = postData.departmentId;
+      }
+      window.KYA_STORE.statementTypeMapping[returnContext.reconKey] = postData.isBudget ? 'budget' : 'non-budget';
+      if (postData.uploadedDoc) {
+        window.KYA_STORE.statementDocMapping[returnContext.reconKey] = postData.uploadedDoc;
+      }
+    }
+
     if (isEditPosted) {
-      const idx = postedEntries.findIndex(e => e.id === entryId);
+      const idx = postedEntries.findIndex(e => String(e.id) === String(entryId));
       if (idx > -1) {
         postedEntries[idx] = postData;
       } else {
@@ -2091,52 +2807,108 @@
     }
 
     showToast(isEditPosted ? 'Journal entry updated successfully!' : 'Journal entry posted successfully!', 'success');
-    if (!isEditPosted) {
+    if (!isEditPosted && !isEditDraft) {
       jvCounter++;
     }
+
+    if (postData.date) {
+      _jeLastSelectedDate = postData.date;
+      try { localStorage.setItem('kya_je_last_date', postData.date); } catch(e) {}
+    }
+
     window._editingJournalEntry = null;
-    refreshAllReports();
+    window._pendingJournalReturnContext = null;
+
     triggerAutoBackup();
-    setTimeout(initFormDefaults, 900);
+    if (typeof window.refreshAllAppViews === 'function') {
+      window.refreshAllAppViews();
+    } else {
+      refreshAllReports();
+    }
+
+    if (returnContext) {
+      if (returnContext.cashlineNavState && typeof window.setCashlineNavigationState === 'function') {
+        window.setCashlineNavigationState(returnContext.cashlineNavState);
+      } else if (typeof window.setCashlineNavigationState === 'function') {
+        window.setCashlineNavigationState({
+          activeTopTab: returnContext.clActiveTopTab,
+          activeBankingTab: returnContext.clActiveBankingTab,
+          reconBankId: returnContext.clReconBankId,
+          cashbookAccountId: returnContext.clCashbookAccountId,
+          reconSubSection: returnContext.clReconSubSection,
+          reconFilter: returnContext.clReconFilter
+        });
+      }
+
+      initFormDefaults();
+
+      const returnTabId = returnContext.tabId || 'cashline';
+      if (typeof closeTab === 'function') {
+        closeTab('journal', null, returnTabId);
+      } else if (typeof openTab === 'function') {
+        openTab(returnTabId);
+      }
+
+      if (returnTabId === 'cashline') {
+        if (typeof renderCashlinePanel === 'function') renderCashlinePanel();
+        else if (typeof window.renderCashlinePanel === 'function') window.renderCashlinePanel();
+        else if (typeof renderActiveSubtab === 'function') renderActiveSubtab();
+      }
+    } else {
+      setTimeout(initFormDefaults, 900);
+    }
   }
 
   // ── Voucher Desk state & logic ───────────────────────────────────
   let _vdSearch = '';
   let _vdTypeFilter = 'All';
   let _vdStatusFilter = 'All';
+  let _vdSelectMode = false;
+  let _vdSelectedKeys = new Set();
 
   function deleteVoucherFromDesk(type, id) {
     if (type === 'Journal') {
-      const isDraft = draftedEntries.some(e => e.id === id);
+      const isDraft = draftedEntries.some(e => String(e.id) === String(id));
       if (isDraft) {
-        const entry = draftedEntries.find(e => e.id === id);
+        const entry = draftedEntries.find(e => String(e.id) === String(id));
         showKyaConfirm({
           title: 'Delete this journal entry?',
           message: `Permanently delete draft <strong>${entry ? entry.voucherNo || '—' : '—'}</strong>?<br>This action cannot be undone.`,
           confirmLabel: '✕ Delete',
           iconBg: '#fee2e2', iconColor: '#dc2626',
-          iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
           okBg: '#dc2626',
           onConfirm: () => {
-            draftedEntries = draftedEntries.filter(e => e.id !== id);
-            triggerAutoBackup();
-            renderVoucherDeskPanel();
+            draftedEntries = draftedEntries.filter(e => String(e.id) !== String(id));
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              triggerAutoBackup();
+              renderVoucherDeskPanel();
+            }
           }
         });
       } else {
-        const entry = postedEntries.find(e => e.id === id);
+        const entry = postedEntries.find(e => String(e.id) === String(id));
         showKyaConfirm({
           title: 'Delete this journal entry?',
           message: `Permanently delete voucher <strong>${entry ? entry.voucherNo || '—' : '—'}</strong>?<br>This action cannot be undone.`,
           confirmLabel: '✕ Delete',
           iconBg: '#fee2e2', iconColor: '#dc2626',
-          iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
           okBg: '#dc2626',
           onConfirm: () => {
-            postedEntries = postedEntries.filter(e => e.id !== id);
-            refreshAllReports();
-            triggerAutoBackup();
-            renderVoucherDeskPanel();
+            postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
+            if (entry && entry.reconKey && window.KYA_STORE?.reconciliationState) {
+              delete window.KYA_STORE.reconciliationState[entry.reconKey];
+            }
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              refreshAllReports();
+              triggerAutoBackup();
+              renderVoucherDeskPanel();
+            }
           }
         });
       }
@@ -2169,27 +2941,166 @@
           okBg: '#dc2626',
           onConfirm: () => {
             const list = window.KYA_STORE?.salesVouchers || [];
-            const idx = list.findIndex(v => v.id === id || v.journalEntryId === id);
+            const idx = list.findIndex(v => String(v.id) === String(id) || String(v.journalEntryId) === String(id));
             if (idx > -1) {
               const inv = list[idx];
               list.splice(idx, 1);
               window.KYA_STORE.salesVouchers = list;
               if (inv.journalEntryId) {
-                postedEntries = postedEntries.filter(e => e.id !== inv.journalEntryId && e.id !== id);
+                postedEntries = postedEntries.filter(e => String(e.id) !== String(inv.journalEntryId) && String(e.id) !== String(id));
               }
             } else {
-              postedEntries = postedEntries.filter(e => e.id !== id);
+              postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
             }
-            refreshAllReports();
-            if (typeof renderSalesPostedPanel === 'function') renderSalesPostedPanel();
-            if (typeof renderLedgerStatementView === 'function') renderLedgerStatementView();
-            triggerAutoBackup();
-            renderVoucherDeskPanel();
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              refreshAllReports();
+              if (typeof renderSalesPostedPanel === 'function') renderSalesPostedPanel();
+              if (typeof renderLedgerStatementView === 'function') renderLedgerStatementView();
+              triggerAutoBackup();
+              renderVoucherDeskPanel();
+            }
           }
         });
       }
     }
   }
+
+  function getVoucherParticularsName(e, type) {
+    if (!e) return '—';
+    const isSales = (type === 'Invoice' || type === 'Order' || type === 'Reversal' || type === 'Sales Invoice' || type === 'Sales Order' || type === 'Sales Reversal' || (e.preparedBy === 'Sales Module'));
+    const isPurch = (type === 'Purchase' || type === 'Purchase Voucher' || (e.preparedBy === 'Purchase Module'));
+
+    // 1. Sales Voucher / Customer Name
+    if (isSales) {
+      if (e.partyOverride && e.partyOverride.name) return e.partyOverride.name;
+      if (e.customerName && e.customerName.trim() !== '') return e.customerName.trim();
+      const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
+      if (e.customerId) {
+        const cust = custs.find(c => String(c.id) === String(e.customerId)) || (typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(e.customerId)) : null);
+        if (cust && cust.name) return cust.name;
+      }
+      const salesList = [
+        ...(window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers) ? window.KYA_STORE.salesVouchers : []),
+        ...(window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchersDrafts) ? window.KYA_STORE.salesVouchersDrafts : [])
+      ];
+      const sv = salesList.find(v => 
+        (v.journalEntryId && String(v.journalEntryId) === String(e.id)) || 
+        String(v.id) === String(e.id) || 
+        v.invoiceNo === e.voucherNo || 
+        `SV-${v.invoiceNo}` === e.voucherNo || 
+        `SR-${v.invoiceNo}` === e.voucherNo || 
+        `SO-${v.invoiceNo}` === e.voucherNo
+      );
+      if (sv) {
+        if (sv.partyOverride && sv.partyOverride.name) return sv.partyOverride.name;
+        if (sv.customerName && sv.customerName.trim() !== '') return sv.customerName.trim();
+        const cust = custs.find(c => String(c.id) === String(sv.customerId)) || (typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(sv.customerId)) : null);
+        if (cust && cust.name) return cust.name;
+      }
+    }
+
+    // 2. Purchase Voucher / Supplier Name
+    if (isPurch) {
+      if (e.partyOverride && e.partyOverride.name) return e.partyOverride.name;
+      if (e.vendorName && e.vendorName.trim() !== '') return e.vendorName.trim();
+      if (e.supplierName && e.supplierName.trim() !== '') return e.supplierName.trim();
+      const supps = typeof getKyaSuppliers === 'function' ? getKyaSuppliers() : [];
+      const sid = e.vendorId || e.supplierId;
+      if (sid) {
+        const supp = supps.find(s => String(s.id) === String(sid)) || (typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(sid)) : null);
+        if (supp && supp.name) return supp.name;
+      }
+      const purchList = [
+        ...(window.KYA_STORE && Array.isArray(window.KYA_STORE.purchaseVouchers) ? window.KYA_STORE.purchaseVouchers : []),
+        ...(window.KYA_STORE && Array.isArray(window.KYA_STORE.purchaseVouchersDrafts) ? window.KYA_STORE.purchaseVouchersDrafts : [])
+      ];
+      const pv = purchList.find(v => 
+        String(v.id) === String(e.id) || 
+        v.invoiceNo === e.voucherNo || 
+        `PV-${v.invoiceNo}` === e.voucherNo
+      );
+      if (pv) {
+        if (pv.partyOverride && pv.partyOverride.name) return pv.partyOverride.name;
+        if (pv.vendorName && pv.vendorName.trim() !== '') return pv.vendorName.trim();
+        const supp = supps.find(s => String(s.id) === String(pv.vendorId)) || (typeof coaLedgers !== 'undefined' ? coaLedgers.find(l => String(l.id) === String(pv.vendorId)) : null);
+        if (supp && supp.name) return supp.name;
+      }
+    }
+
+    // 3. Journal Entry / Ledger Name
+    if (e.firstParticular && e.firstParticular !== '—' && e.firstParticular !== 'undefined') {
+      return e.firstParticular;
+    }
+    if (Array.isArray(e.allRows)) {
+      const validRow = e.allRows.find(r => r && r.particular && r.particular.trim() !== '' && r.particular !== '—');
+      if (validRow) return validRow.particular;
+    }
+    if (e.particulars && e.particulars !== '—') return e.particulars;
+    if (e.oppName) return e.oppName;
+
+    return '—';
+  }
+
+  function updateVdPostAllOptionVisibility() {
+    const postAllOption = document.getElementById('vdPostAllOption');
+    const postAllSep = document.getElementById('vdPostAllSep');
+    const postAllText = document.getElementById('vdPostAllText');
+    if (!postAllOption) return;
+
+    const selectedDraftKeys = [..._vdSelectedKeys].filter(k => k.endsWith('_true'));
+    const count = selectedDraftKeys.length;
+
+    if (count > 0) {
+      postAllOption.style.display = 'flex';
+      if (postAllSep) postAllSep.style.display = 'block';
+      if (postAllText) {
+        postAllText.textContent = count > 1 ? `Post All (${count})` : 'Post All';
+      }
+    } else {
+      postAllOption.style.display = 'none';
+      if (postAllSep) postAllSep.style.display = 'none';
+    }
+  }
+
+  let _vdPostAllLock = false;
+  function executeVoucherDeskPostAll() {
+    if (_vdPostAllLock) return;
+    _vdPostAllLock = true;
+    setTimeout(() => { _vdPostAllLock = false; }, 800);
+
+    const journalDraftIds = [];
+    _vdSelectedKeys.forEach(key => {
+      if (!key.endsWith('_true')) return;
+      const parts = key.split('_');
+      const type = parts[0];
+      const id = parts.slice(1, parts.length - 1).join('_');
+      if (type === 'Journal') {
+        journalDraftIds.push(id);
+      }
+    });
+
+    if (journalDraftIds.length === 0) {
+      if (typeof showToast === 'function') {
+        showToast('No drafted journal entries selected to post.', 'info');
+      }
+      return;
+    }
+
+    // Clean posted keys from selection
+    journalDraftIds.forEach(id => {
+      _vdSelectedKeys.delete(`Journal_${id}_true`);
+    });
+
+    // Close any open menus
+    const moreDropdown = document.getElementById('vdMoreDropdown');
+    if (moreDropdown) moreDropdown.classList.remove('active');
+
+    // Post all drafts instantly (one click all post)
+    postDraftEntries(journalDraftIds);
+  }
+  window.executeVoucherDeskPostAll = executeVoucherDeskPostAll;
 
   function renderVoucherDeskPanel() {
     const wrap = document.getElementById('voucherDeskWrap');
@@ -2219,13 +3130,24 @@
         type = 'Purchase';
       }
 
+      let formattedAmount = e.amount;
+      if (!formattedAmount || formattedAmount === 'undefined') {
+        let calcAmt = 0;
+        if (Array.isArray(e.allRows) && e.allRows.length > 0) {
+          const firstDebit = parseFloat(e.allRows[0].debit) || 0;
+          const firstCredit = parseFloat(e.allRows[0].credit) || 0;
+          calcAmt = firstDebit || firstCredit || 0;
+        }
+        formattedAmount = typeof fmtNum === 'function' ? fmtNum(calcAmt) : (calcAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      }
+
       list.push({
         id: e.id,
         date: e.date,
         voucherNo: e.voucherNo,
         type: type,
-        particulars: e.narration || e.firstParticular || '—',
-        amount: e.amount,
+        particulars: getVoucherParticularsName(e, type),
+        amount: formattedAmount,
         isDraft: false,
         raw: e
       });
@@ -2238,7 +3160,7 @@
         date: e.date,
         voucherNo: e.voucherNo,
         type: 'Journal',
-        particulars: e.narration || e.firstParticular || '—',
+        particulars: getVoucherParticularsName(e, 'Journal'),
         amount: e.amount,
         isDraft: true,
         raw: e
@@ -2248,10 +3170,7 @@
     // 3. Process Sales drafts from KYA_STORE
     const salesDrafts = (window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchersDrafts)) ? window.KYA_STORE.salesVouchersDrafts : [];
     salesDrafts.forEach(d => {
-      const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
-      const cust = custs.find(c => String(c.id) === String(d.customerId));
-      const custName = cust ? cust.name : (d.customerName || '');
-      const vType = d.isReturn ? 'Reversal' : (d.isOrder ? 'Order' : 'Invoice');
+      const vType = d.isReturn ? 'Reversal' : 'Invoice';
       const vAmt = typeof fmtNum === 'function' ? fmtNum(d.total) : (parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
       list.push({
@@ -2259,14 +3178,14 @@
         date: d.date,
         voucherNo: d.invoiceNo || 'Draft',
         type: vType,
-        particulars: d.notes || (`Draft ${vType}${custName ? ' for ' + custName : ''}`),
+        particulars: getVoucherParticularsName(d, vType),
         amount: vAmt,
         isDraft: true,
         raw: d
       });
     });
 
-    // 4. Process any Sales Vouchers not captured in postedEntries (e.g. non-financial orders)
+    // 4. Process any Sales Vouchers not captured in postedEntries
     const salesPosted = (window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchers)) ? window.KYA_STORE.salesVouchers : [];
     salesPosted.forEach(v => {
       const alreadyInList = list.some(item => !item.isDraft && (
@@ -2274,16 +3193,12 @@
         item.id === v.id || 
         item.voucherNo === v.invoiceNo || 
         item.voucherNo === `SV-${v.invoiceNo}` || 
-        item.voucherNo === `SR-${v.invoiceNo}` || 
-        item.voucherNo === `SO-${v.invoiceNo}`
+        item.voucherNo === `SR-${v.invoiceNo}`
       ));
 
       if (!alreadyInList) {
-        const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
-        const cust = custs.find(c => String(c.id) === String(v.customerId));
-        const custName = cust ? cust.name : (v.customerName || '');
-        const vType = v.isReturn ? 'Reversal' : (v.isOrder ? 'Order' : 'Invoice');
-        const prefix = v.isReturn ? 'SR-' : (v.isOrder ? 'SO-' : 'SV-');
+        const vType = v.isReturn ? 'Reversal' : 'Invoice';
+        const prefix = v.isReturn ? 'SR-' : 'SV-';
         const vNo = (v.invoiceNo.startsWith(prefix) || v.invoiceNo.startsWith('INV-')) ? v.invoiceNo : `${prefix}${v.invoiceNo}`;
         const vAmt = typeof fmtNum === 'function' ? fmtNum(v.total) : (parseFloat(v.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -2292,7 +3207,7 @@
           date: v.date,
           voucherNo: vNo,
           type: vType,
-          particulars: v.notes || (`${vType}${custName ? ' for ' + custName : ''}`),
+          particulars: getVoucherParticularsName(v, vType),
           amount: vAmt,
           isDraft: false,
           raw: v
@@ -2300,11 +3215,70 @@
       }
     });
 
-    // 5. Update Stat counters
-    const totalJournal = list.filter(e => e.type === 'Journal' && !e.isDraft).length;
-    const totalSales = list.filter(e => (e.type === 'Invoice' || e.type === 'Order' || e.type === 'Reversal') && !e.isDraft).length;
-    const totalDrafts = list.filter(e => e.isDraft).length;
-    const totalVouchers = list.length;
+    // 5. Process Purchase drafts
+    const purchDrafts = (window.KYA_STORE && Array.isArray(window.KYA_STORE.purchaseVouchersDrafts)) ? window.KYA_STORE.purchaseVouchersDrafts : [];
+    purchDrafts.forEach(d => {
+      const vAmt = typeof fmtNum === 'function' ? fmtNum(d.total) : (parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const vNo = d.invoiceNo ? (d.invoiceNo.startsWith('PV-') ? d.invoiceNo : `PV-${d.invoiceNo}`) : 'Draft';
+
+      list.push({
+        id: d.id,
+        date: d.date,
+        voucherNo: vNo,
+        type: 'Purchase',
+        particulars: getVoucherParticularsName(d, 'Purchase'),
+        amount: vAmt,
+        isDraft: true,
+        raw: d
+      });
+    });
+
+    // 6. Process Purchase Posted
+    const purchPosted = (window.KYA_STORE && Array.isArray(window.KYA_STORE.purchaseVouchers)) ? window.KYA_STORE.purchaseVouchers : [];
+    purchPosted.forEach(v => {
+      const alreadyInList = list.some(item => !item.isDraft && (
+        item.id === v.id || 
+        item.voucherNo === v.invoiceNo || 
+        item.voucherNo === `PV-${v.invoiceNo}`
+      ));
+
+      if (!alreadyInList) {
+        const vNo = v.invoiceNo ? (v.invoiceNo.startsWith('PV-') ? v.invoiceNo : `PV-${v.invoiceNo}`) : '—';
+        const vAmt = typeof fmtNum === 'function' ? fmtNum(v.total) : (parseFloat(v.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        list.push({
+          id: v.id,
+          date: v.date,
+          voucherNo: vNo,
+          type: 'Purchase',
+          particulars: getVoucherParticularsName(v, 'Purchase'),
+          amount: vAmt,
+          isDraft: false,
+          raw: v
+        });
+      }
+    });
+
+    // 7. Date inputs & filtering
+    const fromInp = document.getElementById('vdDateFrom');
+    const toInp   = document.getElementById('vdDateTo');
+    if (fromInp && !fromInp.value) fromInp.value = _globalDateFrom || '2024-04-01';
+    if (toInp   && !toInp.value)   toInp.value   = _globalDateTo || '2025-03-31';
+
+    const dateFrom = fromInp ? fromInp.value : '';
+    const dateTo   = toInp ? toInp.value : '';
+
+    const dateFilteredList = list.filter(e => {
+      if (dateFrom && e.date && e.date < dateFrom) return false;
+      if (dateTo && e.date && e.date > dateTo) return false;
+      return true;
+    });
+
+    // Update Stat counters based on date range
+    const totalJournal = dateFilteredList.filter(e => e.type === 'Journal' && !e.isDraft).length;
+    const totalSales = dateFilteredList.filter(e => (e.type === 'Invoice' || e.type === 'Order' || e.type === 'Reversal') && !e.isDraft).length;
+    const totalDrafts = dateFilteredList.filter(e => e.isDraft).length;
+    const totalVouchers = dateFilteredList.length;
 
     const elTotal = document.getElementById('vdStatTotal');
     const elJE = document.getElementById('vdStatJE');
@@ -2316,13 +3290,15 @@
     if (elInv) elInv.textContent = totalSales;
     if (elDrafts) elDrafts.textContent = totalDrafts;
 
-    list.sort((a, b) => {
+    dateFilteredList.sort((a, b) => {
       const dComp = (b.date || '').localeCompare(a.date || '');
       if (dComp !== 0) return dComp;
-      return b.id - a.id;
+      const vComp = (a.voucherNo || '').localeCompare(b.voucherNo || '', undefined, { numeric: true, sensitivity: 'base' });
+      if (vComp !== 0) return vComp;
+      return (Number(a.id) || 0) - (Number(b.id) || 0);
     });
 
-    let filtered = list.filter(e => {
+    let filtered = dateFilteredList.filter(e => {
       if (_vdTypeFilter !== 'All' && e.type !== _vdTypeFilter) return false;
       
       if (_vdStatusFilter !== 'All') {
@@ -2342,6 +3318,18 @@
       return true;
     });
 
+    const allKeys = filtered.map(e => `${e.type}_${e.id}_${e.isDraft}`);
+    const allChecked = allKeys.length > 0 && allKeys.every(k => _vdSelectedKeys.has(k));
+    const selCount = [..._vdSelectedKeys].filter(k => allKeys.includes(k)).length;
+    const selectedDraftCount = filtered.filter(item => item.isDraft && _vdSelectedKeys.has(`${item.type}_${item.id}_${item.isDraft}`)).length;
+
+    // Synchronize 3-dot menu select text
+    const toggleSelectText = document.getElementById('vdToggleSelectText');
+    if (toggleSelectText) {
+      toggleSelectText.textContent = _vdSelectMode ? 'Exit Select Mode' : 'Select';
+    }
+    updateVdPostAllOptionVisibility();
+
     let tableHtml = '';
     if (filtered.length === 0) {
       tableHtml = `
@@ -2353,13 +3341,21 @@
             </svg>
             <input class="pt-search-inp" id="vdSearch" placeholder="Search voucher #, particulars, amount, date…" style="padding-left: 36px; width: 100%; height: 38px; border-radius: 8px; border: 1.5px solid var(--slate-200); font-size: 13.5px; transition: all 0.15s;" value="${_vdSearch.replace(/"/g,'&quot;')}">
           </div>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            ${_vdSelectMode ? `
+              <div class="pt-sel-bar" style="margin: 0; padding: 4px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                <span class="pt-sel-count" style="font-size: 12.5px; font-weight: 600;">${selCount} selected</span>
+                <button id="vdBtnExitSelect" class="btn btn-secondary" style="height: 30px; padding: 0 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid var(--slate-200); background: #fff; cursor: pointer;" type="button">
+                  Exit Select
+                </button>
+              </div>
+            ` : ''}
             <select id="vdTypeFilter" style="height: 38px; padding: 0 12px; border-radius: 8px; border: 1.5px solid var(--slate-200); font-size: 13px; font-weight: 600; color: var(--slate-700); background: var(--white);">
               <option value="All" ${_vdTypeFilter === 'All' ? 'selected' : ''}>All Types</option>
               <option value="Journal" ${_vdTypeFilter === 'Journal' ? 'selected' : ''}>Journal Entry</option>
               <option value="Invoice" ${_vdTypeFilter === 'Invoice' ? 'selected' : ''}>Sales Invoice</option>
-              <option value="Order" ${_vdTypeFilter === 'Order' ? 'selected' : ''}>Sales Order</option>
               <option value="Reversal" ${_vdTypeFilter === 'Reversal' ? 'selected' : ''}>Sales Reversal</option>
+              <option value="Purchase" ${_vdTypeFilter === 'Purchase' ? 'selected' : ''}>Purchase Voucher</option>
             </select>
           </div>
         </div>
@@ -2383,13 +3379,37 @@
             </svg>
             <input class="pt-search-inp" id="vdSearch" placeholder="Search voucher #, particulars, amount, date…" style="padding-left: 36px; width: 100%; height: 38px; border-radius: 8px; border: 1.5px solid var(--slate-200); font-size: 13.5px; transition: all 0.15s;" value="${_vdSearch.replace(/"/g,'&quot;')}">
           </div>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            ${_vdSelectMode ? `
+              <div class="pt-sel-bar" style="margin: 0; padding: 4px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                <span class="pt-sel-count" style="font-size: 12.5px; font-weight: 600;">${selCount} selected</span>
+                ${selectedDraftCount > 0 ? `
+                  <button class="dt-post-sel-btn" id="vdPostSel" type="button" style="height: 30px; padding: 0 10px; font-size: 12px; display: flex; align-items: center; gap: 5px; border-radius: 6px; border: none; background: #dcfce7; color: #15803d; font-weight: 700; cursor: pointer; transition: background 0.15s;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Post Selected
+                  </button>
+                ` : ''}
+                ${selCount > 0 ? `
+                  <button class="pt-del-btn" id="vdDelSelected" type="button" style="height: 30px; padding: 0 10px; font-size: 12px; display: flex; align-items: center; gap: 5px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                    </svg>
+                    Delete Selected
+                  </button>
+                ` : ''}
+                <button id="vdBtnExitSelect" class="btn btn-secondary" style="height: 30px; padding: 0 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid var(--slate-200); background: #fff; cursor: pointer;" type="button">
+                  Exit Select
+                </button>
+              </div>
+            ` : ''}
             <select id="vdTypeFilter" style="height: 38px; padding: 0 12px; border-radius: 8px; border: 1.5px solid var(--slate-200); font-size: 13px; font-weight: 600; color: var(--slate-700); background: var(--white);">
               <option value="All" ${_vdTypeFilter === 'All' ? 'selected' : ''}>All Types</option>
               <option value="Journal" ${_vdTypeFilter === 'Journal' ? 'selected' : ''}>Journal Entry</option>
               <option value="Invoice" ${_vdTypeFilter === 'Invoice' ? 'selected' : ''}>Sales Invoice</option>
-              <option value="Order" ${_vdTypeFilter === 'Order' ? 'selected' : ''}>Sales Order</option>
               <option value="Reversal" ${_vdTypeFilter === 'Reversal' ? 'selected' : ''}>Sales Reversal</option>
+              <option value="Purchase" ${_vdTypeFilter === 'Purchase' ? 'selected' : ''}>Purchase Voucher</option>
             </select>
           </div>
         </div>
@@ -2398,48 +3418,54 @@
           <table class="pt-table">
             <thead>
               <tr style="background: linear-gradient(90deg, var(--blue-700), var(--blue-500));">
-                <th style="width: 32px; text-align: center;">#</th>
+                ${_vdSelectMode ? `
+                  <th style="width: 40px; text-align: center; padding: 10px 12px;">
+                    <input type="checkbox" class="pt-cb" id="vdSelAll" ${allChecked ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px; accent-color: #2563eb;">
+                  </th>
+                ` : ''}
+                <th style="width: 60px; text-align: center;">Sl No</th>
                 <th>Date</th>
                 <th>Voucher No.</th>
                 <th>Type</th>
-                <th>Particulars / Narration</th>
+                <th>Particulars</th>
                 <th style="text-align: right;">Amount</th>
                 <th style="text-align: center;">Status</th>
               </tr>
             </thead>
             <tbody>
               ${filtered.map((e, index) => {
+                const itemKey = `${e.type}_${e.id}_${e.isDraft}`;
+                const isSelected = _vdSelectedKeys.has(itemKey);
+
                 const typeBadge = e.type === 'Journal'
                    ? `<span class="tb-badge" style="background:#e0f2fe; color:#0369a1; border:1.5px solid #bae6fd; font-size:11px; padding:3px 8px; text-transform:none;">Journal Entry</span>`
                    : (e.type === 'Reversal'
                       ? `<span class="tb-badge" style="background:#fee2e2; color:#b91c1c; border:1.5px solid #fca5a5; font-size:11px; padding:3px 8px; text-transform:none;">Sales Reversal</span>`
-                      : (e.type === 'Order'
-                         ? `<span class="tb-badge" style="background:#e0e7ff; color:#4338ca; border:1.5px solid #c7d2fe; font-size:11px; padding:3px 8px; text-transform:none;">Sales Order</span>`
+                      : (e.type === 'Purchase'
+                         ? `<span class="tb-badge" style="background:#fef3c7; color:#b45309; border:1.5px solid #fde68a; font-size:11px; padding:3px 8px; text-transform:none;">Purchase Voucher</span>`
                          : `<span class="tb-badge" style="background:#dcfce7; color:#15803d; border:1.5px solid #bbf7d0; font-size:11px; padding:3px 8px; text-transform:none;">Sales Invoice</span>`));
 
                 let statusBadge = '';
                 if (e.isDraft) {
                   statusBadge = `<span class="tb-badge" style="background:#fffbeb; color:#d97706; border:1.5px solid #fde68a; font-size:11px; padding:3px 8px; text-transform:none;">Draft</span>`;
-                } else if (e.type === 'Order') {
-                  const isCompleted = (window.KYA_STORE.salesVouchers || []).some(v => !v.isOrder && !v.isReturn && v.orderNo === e.voucherNo);
-                  if (isCompleted) {
-                    statusBadge = `<span class="tb-badge" style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; font-size:11px; padding:3px 8px; text-transform:none;">Completed</span>`;
-                  } else {
-                    statusBadge = `<span class="tb-badge" style="background:#e0f2fe; color:#0369a1; border:1.5px solid #bae6fd; font-size:11px; padding:3px 8px; text-transform:none;">Placed</span>`;
-                  }
                 } else {
                   statusBadge = `<span class="tb-badge" style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; font-size:11px; padding:3px 8px; text-transform:none;">Posted</span>`;
                 }
 
-                const amtColor = e.type === 'Journal' ? 'var(--blue-600)' : (e.type === 'Reversal' ? '#dc2626' : (e.type === 'Order' ? 'var(--emerald-700)' : '#059669'));
+                const amtColor = e.type === 'Journal' ? 'var(--blue-600)' : (e.type === 'Reversal' ? '#dc2626' : (e.type === 'Purchase' ? 'var(--amber-700)' : '#059669'));
 
                 return `
-                  <tr data-id="${e.id}" data-type="${e.type}" data-draft="${e.isDraft}" class="vd-row" style="cursor: pointer;">
+                  <tr data-id="${e.id}" data-type="${e.type}" data-draft="${e.isDraft}" data-key="${itemKey}" class="vd-row ${isSelected ? 'pt-sel-row' : ''}" style="cursor: pointer;">
+                    ${_vdSelectMode ? `
+                      <td style="text-align: center; padding: 10px 12px;" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="pt-cb vd-rcb" data-key="${itemKey}" ${isSelected ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px; accent-color: #2563eb;">
+                      </td>
+                    ` : ''}
                     <td style="color:#94a3b8; font-size:12px; font-weight:600; text-align:center;">${index + 1}</td>
                     <td style="white-space:nowrap;">${e.date || '—'}</td>
                     <td><span style="font-family: monospace; font-weight: 700; color: var(--slate-700);">${e.voucherNo || '—'}</span></td>
                     <td>${typeBadge}</td>
-                    <td style="font-weight:500; color:var(--slate-800); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ohEsc(e.particulars)}</td>
+                    <td style="font-weight:600; color:var(--slate-800); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ohEsc(e.particulars)}</td>
                     <td style="text-align:right; font-weight:700; color:${amtColor}; white-space:nowrap;">₹&thinsp;${e.amount}</td>
                     <td style="text-align:center;">${statusBadge}</td>
                   </tr>
@@ -2458,6 +3484,22 @@
       btn.classList.toggle('active', btn.dataset.status === _vdStatusFilter);
     });
 
+    const vdDateFromEl = document.getElementById('vdDateFrom');
+    if (vdDateFromEl && !vdDateFromEl._isWired) {
+      vdDateFromEl._isWired = true;
+      vdDateFromEl.addEventListener('change', () => {
+        renderVoucherDeskPanel();
+      });
+    }
+
+    const vdDateToEl = document.getElementById('vdDateTo');
+    if (vdDateToEl && !vdDateToEl._isWired) {
+      vdDateToEl._isWired = true;
+      vdDateToEl.addEventListener('change', () => {
+        renderVoucherDeskPanel();
+      });
+    }
+
     const searchEl = document.getElementById('vdSearch');
     if (searchEl) {
       searchEl.addEventListener('input', e => {
@@ -2474,16 +3516,139 @@
       });
     }
 
+    const selAll = document.getElementById('vdSelAll');
+    if (selAll) {
+      selAll.addEventListener('change', e => {
+        if (e.target.checked) allKeys.forEach(k => _vdSelectedKeys.add(k));
+        else allKeys.forEach(k => _vdSelectedKeys.delete(k));
+        renderVoucherDeskPanel();
+      });
+    }
+
+    wrap.querySelectorAll('.vd-rcb').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const key = e.target.dataset.key;
+        if (e.target.checked) _vdSelectedKeys.add(key);
+        else _vdSelectedKeys.delete(key);
+        renderVoucherDeskPanel();
+      });
+    });
+
+    const exitSelectBtn = document.getElementById('vdBtnExitSelect');
+    if (exitSelectBtn) {
+      exitSelectBtn.addEventListener('click', () => {
+        _vdSelectMode = false;
+        _vdSelectedKeys.clear();
+        const selectText = document.getElementById('vdToggleSelectText');
+        if (selectText) selectText.textContent = 'Select';
+        renderVoucherDeskPanel();
+      });
+    }
+
+    const postSelBtn = document.getElementById('vdPostSel');
+    if (postSelBtn) {
+      postSelBtn.addEventListener('click', () => {
+        executeVoucherDeskPostAll();
+      });
+    }
+
+    const delSelBtn = document.getElementById('vdDelSelected');
+    if (delSelBtn) {
+      delSelBtn.addEventListener('click', () => {
+        const n = selCount;
+        showKyaConfirm({
+          title: 'Delete Selected Vouchers?',
+          message: `Permanently delete <strong>${n} selected ${n === 1 ? 'voucher' : 'vouchers'}</strong>?<br>This action cannot be undone.`,
+          confirmLabel: '✕ Delete',
+          iconBg: '#fee2e2', iconColor: '#dc2626',
+          iconSvg: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          okBg: '#dc2626',
+          onConfirm: () => {
+            const selectedItems = filtered.filter(item => _vdSelectedKeys.has(`${item.type}_${item.id}_${item.isDraft}`));
+            selectedItems.forEach(item => {
+              const id = item.id;
+              const type = item.type;
+              const isDraft = item.isDraft;
+
+              if (type === 'Journal') {
+                if (isDraft) {
+                  draftedEntries = draftedEntries.filter(e => String(e.id) !== String(id));
+                } else {
+                  postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
+                }
+              } else if (type === 'Invoice' || type === 'Order' || type === 'Reversal') {
+                if (isDraft) {
+                  if (window.KYA_STORE?.salesVouchersDrafts) {
+                    window.KYA_STORE.salesVouchersDrafts = window.KYA_STORE.salesVouchersDrafts.filter(d => String(d.id) !== String(id));
+                  }
+                } else {
+                  const sList = window.KYA_STORE?.salesVouchers || [];
+                  const idx = sList.findIndex(v => String(v.id) === String(id) || String(v.journalEntryId) === String(id));
+                  if (idx > -1) {
+                    const inv = sList[idx];
+                    sList.splice(idx, 1);
+                    window.KYA_STORE.salesVouchers = sList;
+                    if (inv.journalEntryId) {
+                      postedEntries = postedEntries.filter(e => String(e.id) !== String(inv.journalEntryId) && String(e.id) !== String(id));
+                    }
+                  } else {
+                    postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
+                  }
+                }
+              } else if (type === 'Purchase') {
+                if (isDraft) {
+                  if (window.KYA_STORE?.purchaseVouchersDrafts) {
+                    window.KYA_STORE.purchaseVouchersDrafts = window.KYA_STORE.purchaseVouchersDrafts.filter(d => String(d.id) !== String(id));
+                  }
+                } else {
+                  const pList = window.KYA_STORE?.purchaseVouchers || [];
+                  const idx = pList.findIndex(v => String(v.id) === String(id));
+                  if (idx > -1) {
+                    pList.splice(idx, 1);
+                    window.KYA_STORE.purchaseVouchers = pList;
+                  }
+                  postedEntries = postedEntries.filter(e => String(e.id) !== String(id));
+                }
+              }
+            });
+
+            _vdSelectedKeys.clear();
+            if (typeof showToast === 'function') {
+              showToast(`${n} ${n === 1 ? 'voucher' : 'vouchers'} deleted successfully.`, 'success');
+            }
+            if (typeof window.refreshAllAppViews === 'function') {
+              window.refreshAllAppViews();
+            } else {
+              refreshAllReports();
+              if (typeof renderSalesPostedPanel === 'function') renderSalesPostedPanel();
+              if (typeof renderSalesDraftedPanel === 'function') renderSalesDraftedPanel();
+              if (typeof renderLedgerStatementView === 'function') renderLedgerStatementView();
+              triggerAutoBackup();
+              renderVoucherDeskPanel();
+            }
+          }
+        });
+      });
+    }
+
     wrap.querySelectorAll('.vd-row').forEach(row => {
       row.addEventListener('click', () => {
+        const key = row.dataset.key;
+        if (_vdSelectMode) {
+          if (_vdSelectedKeys.has(key)) _vdSelectedKeys.delete(key);
+          else _vdSelectedKeys.add(key);
+          renderVoucherDeskPanel();
+          return;
+        }
+
         const id = Number(row.dataset.id);
         const type = row.dataset.type;
         const isDraft = row.dataset.draft === 'true';
 
         if (type === 'Journal') {
           const entry = isDraft
-            ? draftedEntries.find(e => e.id === id)
-            : postedEntries.find(e => e.id === id);
+            ? draftedEntries.find(e => String(e.id) === String(id) || e.id == id)
+            : postedEntries.find(e => String(e.id) === String(id) || e.id == id);
           if (entry) showFullJournalModal(entry, isDraft);
         } else if (type === 'Invoice' || type === 'Reversal' || type === 'Order') {
           if (isDraft) {
@@ -2495,12 +3660,24 @@
               const cleanNo = vNo.replace(/^(SV-|SR-|SO-|INV-)/, '');
               sInv = (window.KYA_STORE?.salesVouchers || []).find(v => v.invoiceNo === cleanNo || v.invoiceNo === vNo);
             }
-            if (sInv && typeof viewPrintInvoice === 'function') {
+            if (sInv && typeof window.viewSalesTaxInvoice === 'function') {
+              window.viewSalesTaxInvoice(sInv.id);
+            } else if (sInv && typeof viewPrintInvoice === 'function') {
               viewPrintInvoice(sInv.id);
             } else {
               const entry = postedEntries.find(e => e.id === id);
               if (entry) showFullJournalModal(entry, false);
             }
+          }
+        } else if (type === 'Purchase') {
+          if (typeof loadPurchaseVoucher === 'function') {
+            loadPurchaseVoucher(id, isDraft);
+            if (typeof openTab === 'function') openTab('purchase_voucher');
+          } else {
+            const entry = isDraft
+              ? draftedEntries.find(e => e.id === id)
+              : postedEntries.find(e => e.id === id);
+            if (entry) showFullJournalModal(entry, isDraft);
           }
         }
       });
@@ -2519,6 +3696,10 @@
 
   function getVoucherDeskExportData() {
     let list = [];
+    const fromInp = document.getElementById('vdDateFrom');
+    const toInp   = document.getElementById('vdDateTo');
+    const dateFrom = fromInp ? fromInp.value : '';
+    const dateTo   = toInp ? toInp.value : '';
 
     // 1. Process Journal & Sales entries posted in postedEntries
     postedEntries.forEach(e => {
@@ -2534,14 +3715,25 @@
         type = 'Purchase';
       }
 
+      let formattedAmount = e.amount;
+      if (!formattedAmount || formattedAmount === 'undefined') {
+        let calcAmt = 0;
+        if (Array.isArray(e.allRows) && e.allRows.length > 0) {
+          const firstDebit = parseFloat(e.allRows[0].debit) || 0;
+          const firstCredit = parseFloat(e.allRows[0].credit) || 0;
+          calcAmt = firstDebit || firstCredit || 0;
+        }
+        formattedAmount = typeof fmtNum === 'function' ? fmtNum(calcAmt) : (calcAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      }
+
       list.push({
         id: e.id,
         date: e.date,
         voucherNo: e.voucherNo,
         type: type,
         rawType: (type === 'Journal Entry' ? 'Journal' : (type === 'Sales Reversal' ? 'Reversal' : (type === 'Sales Order' ? 'Order' : (type === 'Purchase' ? 'Purchase' : 'Invoice')))),
-        particulars: e.narration || e.firstParticular || '—',
-        amount: e.amount,
+        particulars: getVoucherParticularsName(e, type),
+        amount: formattedAmount,
         status: 'Posted',
         isDraft: false
       });
@@ -2555,7 +3747,7 @@
         voucherNo: e.voucherNo,
         type: 'Journal Entry',
         rawType: 'Journal',
-        particulars: e.narration || e.firstParticular || '—',
+        particulars: getVoucherParticularsName(e, 'Journal'),
         amount: e.amount,
         status: 'Draft',
         isDraft: true
@@ -2565,10 +3757,7 @@
     // 3. Process Sales drafts
     const salesDrafts = (window.KYA_STORE && Array.isArray(window.KYA_STORE.salesVouchersDrafts)) ? window.KYA_STORE.salesVouchersDrafts : [];
     salesDrafts.forEach(d => {
-      const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
-      const cust = custs.find(c => String(c.id) === String(d.customerId));
-      const custName = cust ? cust.name : (d.customerName || '');
-      const vType = d.isReturn ? 'Sales Reversal' : (d.isOrder ? 'Sales Order' : 'Sales Invoice');
+      const vType = d.isReturn ? 'Sales Reversal' : 'Sales Invoice';
       const vAmt = typeof fmtNum === 'function' ? fmtNum(d.total) : (parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
       list.push({
@@ -2576,8 +3765,8 @@
         date: d.date,
         voucherNo: d.invoiceNo || 'Draft',
         type: vType,
-        rawType: d.isReturn ? 'Reversal' : (d.isOrder ? 'Order' : 'Invoice'),
-        particulars: d.notes || (`Draft ${vType}${custName ? ' for ' + custName : ''}`),
+        rawType: d.isReturn ? 'Reversal' : 'Invoice',
+        particulars: getVoucherParticularsName(d, vType),
         amount: vAmt,
         status: 'Draft',
         isDraft: true
@@ -2592,34 +3781,72 @@
         item.id === v.id || 
         item.voucherNo === v.invoiceNo || 
         item.voucherNo === `SV-${v.invoiceNo}` || 
-        item.voucherNo === `SR-${v.invoiceNo}` || 
-        item.voucherNo === `SO-${v.invoiceNo}`
+        item.voucherNo === `SR-${v.invoiceNo}`
       ));
 
       if (!alreadyInList) {
-        const custs = typeof getKyaCustomers === 'function' ? getKyaCustomers() : [];
-        const cust = custs.find(c => String(c.id) === String(v.customerId));
-        const custName = cust ? cust.name : (v.customerName || '');
-        const vType = v.isReturn ? 'Sales Reversal' : (v.isOrder ? 'Sales Order' : 'Sales Invoice');
-        const prefix = v.isReturn ? 'SR-' : (v.isOrder ? 'SO-' : 'SV-');
+        const vType = v.isReturn ? 'Sales Reversal' : 'Sales Invoice';
+        const prefix = v.isReturn ? 'SR-' : 'SV-';
         const vNo = (v.invoiceNo && (v.invoiceNo.startsWith(prefix) || v.invoiceNo.startsWith('INV-'))) ? v.invoiceNo : `${prefix}${v.invoiceNo || ''}`;
         const vAmt = typeof fmtNum === 'function' ? fmtNum(v.total) : (parseFloat(v.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         
-        let status = 'Posted';
-        if (v.isOrder) {
-          const isCompleted = (window.KYA_STORE.salesVouchers || []).some(so => !so.isOrder && !so.isReturn && so.orderNo === vNo);
-          status = isCompleted ? 'Completed' : 'Placed';
-        }
+        const status = 'Posted';
 
         list.push({
           id: v.id,
           date: v.date,
           voucherNo: vNo,
           type: vType,
-          rawType: v.isReturn ? 'Reversal' : (v.isOrder ? 'Order' : 'Invoice'),
-          particulars: v.notes || (`${vType}${custName ? ' for ' + custName : ''}`),
+          rawType: v.isReturn ? 'Reversal' : 'Invoice',
+          particulars: getVoucherParticularsName(v, vType),
           amount: vAmt,
           status: status,
+          isDraft: false
+        });
+      }
+    });
+
+    // 5. Process Purchase drafts
+    const purchDrafts = (window.KYA_STORE && Array.isArray(window.KYA_STORE.purchaseVouchersDrafts)) ? window.KYA_STORE.purchaseVouchersDrafts : [];
+    purchDrafts.forEach(d => {
+      const vAmt = typeof fmtNum === 'function' ? fmtNum(d.total) : (parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const vNo = d.invoiceNo ? (d.invoiceNo.startsWith('PV-') ? d.invoiceNo : `PV-${d.invoiceNo}`) : 'Draft';
+
+      list.push({
+        id: d.id,
+        date: d.date,
+        voucherNo: vNo,
+        type: 'Purchase Voucher',
+        rawType: 'Purchase',
+        particulars: getVoucherParticularsName(d, 'Purchase'),
+        amount: vAmt,
+        status: 'Draft',
+        isDraft: true
+      });
+    });
+
+    // 6. Process Purchase Posted
+    const purchPosted = (window.KYA_STORE && Array.isArray(window.KYA_STORE.purchaseVouchers)) ? window.KYA_STORE.purchaseVouchers : [];
+    purchPosted.forEach(v => {
+      const alreadyInList = list.some(item => !item.isDraft && (
+        item.id === v.id || 
+        item.voucherNo === v.invoiceNo || 
+        item.voucherNo === `PV-${v.invoiceNo}`
+      ));
+
+      if (!alreadyInList) {
+        const vNo = v.invoiceNo ? (v.invoiceNo.startsWith('PV-') ? v.invoiceNo : `PV-${v.invoiceNo}`) : '—';
+        const vAmt = typeof fmtNum === 'function' ? fmtNum(v.total) : (parseFloat(v.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        list.push({
+          id: v.id,
+          date: v.date,
+          voucherNo: vNo,
+          type: 'Purchase Voucher',
+          rawType: 'Purchase',
+          particulars: getVoucherParticularsName(v, 'Purchase'),
+          amount: vAmt,
+          status: 'Posted',
           isDraft: false
         });
       }
@@ -2628,11 +3855,15 @@
     list.sort((a, b) => {
       const dComp = (b.date || '').localeCompare(a.date || '');
       if (dComp !== 0) return dComp;
-      return b.id - a.id;
+      const vComp = (a.voucherNo || '').localeCompare(b.voucherNo || '', undefined, { numeric: true, sensitivity: 'base' });
+      if (vComp !== 0) return vComp;
+      return (Number(a.id) || 0) - (Number(b.id) || 0);
     });
 
     // Apply current active filters if any
     let filtered = list.filter(e => {
+      if (dateFrom && e.date && e.date < dateFrom) return false;
+      if (dateTo && e.date && e.date > dateTo) return false;
       if (_vdTypeFilter && _vdTypeFilter !== 'All' && e.rawType !== _vdTypeFilter) return false;
       if (_vdStatusFilter && _vdStatusFilter !== 'All') {
         const isDraft = _vdStatusFilter === 'Draft';
@@ -2654,6 +3885,8 @@
       companyName: activeCo.name || 'KYA Accounting',
       filterStatus: _vdStatusFilter || 'All',
       filterType: _vdTypeFilter || 'All',
+      dateFrom,
+      dateTo,
       items: filtered
     };
   }
@@ -2680,6 +3913,7 @@
         const isOpen = moreDropdown.classList.contains('active');
         closeAllVdMenus();
         if (!isOpen) {
+          updateVdPostAllOptionVisibility();
           moreDropdown.classList.add('active');
         }
       });
@@ -2726,6 +3960,32 @@
         if (typeof window.exportVoucherDeskToExcel === 'function') {
           await window.exportVoucherDeskToExcel(getVoucherDeskExportData());
         }
+      });
+    }
+
+    const toggleSelectBtn = document.getElementById('vdToggleSelectMode');
+    if (toggleSelectBtn) {
+      toggleSelectBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeAllVdMenus();
+        _vdSelectMode = !_vdSelectMode;
+        if (!_vdSelectMode) {
+          _vdSelectedKeys.clear();
+        }
+        const selectText = document.getElementById('vdToggleSelectText');
+        if (selectText) {
+          selectText.textContent = _vdSelectMode ? 'Exit Select Mode' : 'Select';
+        }
+        renderVoucherDeskPanel();
+      });
+    }
+
+    const postAllOption = document.getElementById('vdPostAllOption');
+    if (postAllOption) {
+      postAllOption.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeAllVdMenus();
+        executeVoucherDeskPostAll();
       });
     }
 
